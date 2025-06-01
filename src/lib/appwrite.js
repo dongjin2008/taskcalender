@@ -1,21 +1,38 @@
 import { Client, Account, Databases, ID } from "appwrite";
 
-// Initialize the Appwrite client
-const client = new Client()
-  .setEndpoint(
-    process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1"
-  )
-  .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "");
+// Check if code is running on server side
+const isServer = typeof window === "undefined";
+
+// Initialize the Appwrite client with appropriate credentials
+const client = new Client();
+
+// Configure client differently for server vs client
+if (isServer) {
+  // Server-side configuration - uses private env vars
+  client
+    .setEndpoint(
+      process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1"
+    )
+    .setProject(process.env.APPWRITE_PROJECT_ID || "");
+} else {
+  // Client-side configuration - use API endpoints instead of direct DB access
+  // We'll need to create an API route to securely handle client-side requests
+  client
+    .setEndpoint(process.env.NEXT_PUBLIC_API_ENDPOINT || "/api")
+    .setProject("client"); // This can be any placeholder value
+}
 
 // Initialize Appwrite services
 const account = new Account(client);
 const databases = new Databases(client);
 
-// App configuration
+// App configuration - keep private details server-side only
 const AppwriteConfig = {
-  databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || "",
-  calendarEventsCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_EVENTS_COLLECTION_ID || "",
+  // Use variables without exposing them to client
+  databaseId: isServer ? process.env.APPWRITE_DATABASE_ID : "",
+  calendarEventsCollectionId: isServer
+    ? process.env.APPWRITE_EVENTS_COLLECTION_ID
+    : "",
 
   // Parse allowed domains from environment variable
   get allowedDomains() {
@@ -34,9 +51,8 @@ const AppwriteConfig = {
 // Helper function to check if the current user is authenticated
 const isTeacher = async () => {
   try {
-    // Try to get current account info - will fail if not logged in
     const user = await account.get();
-    return !!user.$id; // Will be true if user exists and has an ID
+    return !!user.$id;
   } catch (error) {
     return false;
   }

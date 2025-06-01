@@ -14,9 +14,7 @@ import {
 } from "../../../../lib/appwrite";
 import { ID, Query } from "appwrite";
 
-const ALLOWED_PARENT_DOMAINS = [
-  "srnschool.org",
-];
+const ALLOWED_PARENT_DOMAINS = ["srnschool.org"];
 
 // Add custom styles at the top of the component
 const calendarStyles = `
@@ -96,21 +94,15 @@ const Page = () => {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const response = await databases.listDocuments(
-        AppwriteConfig.databaseId,
-        AppwriteConfig.calendarEventsCollectionId,
-        [Query.orderDesc("$createdAt")]
-      );
+      // Use your API route instead of direct Appwrite access
+      const response = await fetch("/api/events");
 
-      const calendarEvents = response.documents.map((doc) => ({
-        id: doc.$id,
-        title: doc.title,
-        start: doc.date,
-        subject: doc.subject || "",
-        description: doc.description || "",
-      }));
+      if (!response.ok) {
+        throw new Error("Failed to fetch events");
+      }
 
-      setEvents(calendarEvents);
+      const data = await response.json();
+      setEvents(data.events);
     } catch (err) {
       console.error("Error fetching events:", err);
       setError("Failed to load calendar events");
