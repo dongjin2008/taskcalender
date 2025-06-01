@@ -3,37 +3,38 @@ import { account } from "@/lib/appwrite";
 
 export async function POST(request) {
   try {
+    // Log that the API was called
     console.log("Login API called");
+
+    // Parse the request body
     const { email, password } = await request.json();
+    console.log(`Login attempt for email: ${email}`);
 
-    console.log(`Attempting login for email: ${email}`);
-
-    // Delete any existing sessions first to prevent conflicts
-    try {
-      await account.deleteSession("current");
-      console.log("Deleted existing session");
-    } catch (e) {
-      // Expected error if no current session
-      console.log("No existing session to delete");
+    // Validate inputs before proceeding
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "이메일과 비밀번호를 모두 입력해주세요." },
+        { status: 400 }
+      );
     }
 
-    // Create a new session
+    // Try to create a session
     const session = await account.createEmailSession(email, password);
-    console.log("New session created:", session.userId);
+    console.log("Session created successfully:", session.userId);
 
-    // Explicitly log cookie information for debugging
-    // Note: Appwrite handles cookies automatically, but we want to verify
-    // Create success response
+    // Return success response
     return NextResponse.json({
       success: true,
       message: "로그인 성공",
       userId: session.userId,
     });
   } catch (error) {
-    console.error("Login error details:", {
+    // Log detailed error information
+    console.error("Login API error:", {
       message: error.message,
       code: error.code,
       type: error.type,
+      stack: error.stack,
     });
 
     // More specific error messages

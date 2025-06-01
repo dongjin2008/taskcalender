@@ -69,6 +69,13 @@ const Page = () => {
 
   const [events, setEvents] = useState([]);
 
+  // Add this state for notifications
+  const [notification, setNotification] = useState({
+    show: false,
+    message: "",
+    type: "info",
+  });
+
   // Check if user is authenticated on component mount
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -162,8 +169,8 @@ const Page = () => {
       // Refresh auth status to ensure it's updated
       await checkAuthStatus();
 
-      // Optional: Show success message
-      alert("로그인 성공!");
+      // Show success notification instead of alert
+      showNotification("로그인 성공!", "success");
     } catch (error) {
       console.error("Login error:", error);
       setError(
@@ -236,7 +243,7 @@ const Page = () => {
       setShowAuthModal(false);
 
       // Show success message
-      alert(data.message || "계정이 생성되었습니다.");
+      showNotification(data.message || "계정이 생성되었습니다.", "success");
     } catch (error) {
       console.error("Registration error:", error);
 
@@ -259,24 +266,33 @@ const Page = () => {
         credentials: "include", // Important for cookies
       });
 
-      if (response.ok) {
-        setIsTeacherUser(false);
+      // Always log out the user locally regardless of server response
+      setIsTeacherUser(false);
 
-        // Force refresh the auth status
-        await checkAuthStatus();
+      const data = await response.json();
 
-        // Optional - show logout success message
-        alert("로그아웃되었습니다.");
+      if (response.ok && data.success) {
+        showNotification("로그아웃되었습니다.", "info");
       } else {
-        const data = await response.json();
-        console.error("Logout failed:", data);
-        // Fallback - even if API fails, we can still log out the user locally
-        setIsTeacherUser(false);
+        console.warn("Server logout had issues:", data);
+        showNotification(
+          "서버 로그아웃에 문제가 있었지만 로그아웃되었습니다.",
+          "warning"
+        );
       }
+
+      // Force refresh the auth status
+      await checkAuthStatus();
     } catch (error) {
       console.error("Logout error:", error);
-      // Fallback - even if API fails, we can still log out the user locally
       setIsTeacherUser(false);
+      showNotification(
+        "로그아웃 중 오류가 발생했지만 로그아웃되었습니다.",
+        "warning"
+      );
+
+      // Refresh auth status
+      await checkAuthStatus();
     }
   };
 
@@ -608,6 +624,24 @@ const Page = () => {
             type="button"
             className="btn-close"
             onClick={() => setError(null)}
+            aria-label="Close"
+          ></button>
+        </div>
+      )}
+
+      {/* Notification component */}
+      {notification.show && (
+        <div
+          className={`alert alert-${notification.type} alert-dismissible fade show`}
+          role="alert"
+        >
+          {notification.message}
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() =>
+              setNotification({ show: false, message: "", type: "info" })
+            }
             aria-label="Close"
           ></button>
         </div>
