@@ -13,10 +13,11 @@ if (isServer) {
     .setEndpoint(
       process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1"
     )
-    .setProject(process.env.APPWRITE_PROJECT_ID || "");
+    .setProject(process.env.APPWRITE_PROJECT_ID || "")
+    .setSelfSigned(true); // For self-signed certificates in dev environment
 } else {
-  // For client-side, we don't initialize Appwrite directly
-  // All Appwrite operations will go through our API routes
+  // Client-side configuration
+  // No client-side initialization needed - using API routes
 }
 
 // Initialize Appwrite services - only used server-side

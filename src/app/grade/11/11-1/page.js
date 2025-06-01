@@ -73,16 +73,21 @@ const Page = () => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        // Try to get current account info - will fail if not logged in
-        const user = await account.get();
-        setIsTeacherUser(true);
+        // Use the API route instead of direct Appwrite call
+        const response = await fetch("/api/auth/status", {
+          credentials: "include", // Important for cookies
+        });
+
+        if (!response.ok) {
+          throw new Error("Auth check failed");
+        }
+
+        const data = await response.json();
+        setIsTeacherUser(data.isAuthenticated);
       } catch (error) {
         // Expected error if not logged in
         setIsTeacherUser(false);
-        // Only log if it's not the standard "not authenticated" error
-        if (error.code !== 401) {
-          console.error("Auth status check error:", error);
-        }
+        console.error("Auth status check error:", error);
       }
     };
 
@@ -114,6 +119,8 @@ const Page = () => {
   // Handle login
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError(null); // Clear any existing errors
+
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -122,6 +129,7 @@ const Page = () => {
           email: authForm.email,
           password: authForm.password,
         }),
+        credentials: "include", // Important for cookies
       });
 
       const data = await response.json();
@@ -130,10 +138,15 @@ const Page = () => {
         throw new Error(data.error || "로그인 실패");
       }
 
+      console.log("Login successful:", data);
+
       // Set user as authenticated
       setIsTeacherUser(true);
       setShowAuthModal(false);
       setError(null);
+
+      // Optional - show a success toast
+      alert("로그인 성공!");
     } catch (error) {
       console.error("Login error:", error);
       setError(
@@ -145,6 +158,8 @@ const Page = () => {
   // Handle registration
   const handleRegister = async (e) => {
     e.preventDefault();
+    setError(null); // Clear any existing errors
+
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
@@ -154,6 +169,7 @@ const Page = () => {
           password: authForm.password,
           name: authForm.name,
         }),
+        credentials: "include", // Important for cookies
       });
 
       const data = await response.json();
@@ -162,12 +178,24 @@ const Page = () => {
         throw new Error(data.error || "계정 생성 실패");
       }
 
+      console.log("Registration successful:", data);
+
       setIsTeacherUser(true);
       setShowAuthModal(false);
-      setError(null);
+
+      // Show success message
+      alert(data.message || "계정이 생성되었습니다.");
     } catch (error) {
       console.error("Registration error:", error);
+
+      // Show the error to the user
       setError(error.message || "계정 생성 실패");
+
+      // Check if it's a case of "already registered but login failed"
+      if (error.message.includes("이미 사용 중인 이메일입니다")) {
+        // Possibly switch to login mode
+        setAuthMode("login");
+      }
     }
   };
 
