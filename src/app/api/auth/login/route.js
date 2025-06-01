@@ -5,10 +5,10 @@ export async function POST(request) {
   try {
     const { email, password } = await request.json();
 
-    // Create a session
+    // Create a session using the Appwrite SDK
     const session = await account.createEmailSession(email, password);
 
-    // Return success response with some session info for validation
+    // Return success response
     return NextResponse.json({
       success: true,
       message: "로그인 성공",

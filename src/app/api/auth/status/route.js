@@ -3,7 +3,7 @@ import { account } from "@/lib/appwrite";
 
 export async function GET() {
   try {
-    // Try to get current account info - will fail if not logged in
+    // Try to get current account info using the server-side Appwrite client
     const user = await account.get();
 
     // Return authenticated status with minimal user info
@@ -16,16 +16,11 @@ export async function GET() {
       },
     });
   } catch (error) {
+    console.log("Not authenticated:", error);
+
     // Expected error if not logged in
-    return NextResponse.json(
-      {
-        isAuthenticated: false,
-        error: "Not authenticated",
-      },
-      { status: 401 }
-    );
+    return NextResponse.json({
+      isAuthenticated: false,
+    });
   }
 }
-
-// In your login handler
-console.log("Login form data:", authForm);

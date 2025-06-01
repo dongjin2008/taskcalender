@@ -13,8 +13,19 @@ if (isServer) {
     .setEndpoint(
       process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1"
     )
-    .setProject(process.env.APPWRITE_PROJECT_ID || "")
-    .setSelfSigned(true); // For self-signed certificates in dev environment
+    .setProject(process.env.APPWRITE_PROJECT_ID || "");
+
+  // Note: setSelfSigned is removed as it's not supported in your version
+  // If you need to ignore self-signed certificates, use Node.js environment settings instead
+
+  // Alternative: If you need to handle self-signed certificates in development:
+  if (process.env.NODE_ENV === "development") {
+    // This is a global Node.js setting, not part of Appwrite SDK
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    console.warn(
+      "Warning: Accepting insecure certificates (development mode only)"
+    );
+  }
 } else {
   // Client-side configuration
   // No client-side initialization needed - using API routes
