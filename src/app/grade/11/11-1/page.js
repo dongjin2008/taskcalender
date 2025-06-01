@@ -115,11 +115,20 @@ const Page = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      // Use createEmailPasswordSession for login (notice the method name change)
-      await account.createEmailPasswordSession(
-        authForm.email,
-        authForm.password
-      );
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: authForm.email,
+          password: authForm.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "로그인 실패");
+      }
 
       // Set user as authenticated
       setIsTeacherUser(true);
@@ -127,7 +136,9 @@ const Page = () => {
       setError(null);
     } catch (error) {
       console.error("Login error:", error);
-      setError("로그인 실패: 이메일이나 비밀번호가 올바르지 않습니다");
+      setError(
+        error.message || "로그인 실패: 이메일이나 비밀번호가 올바르지 않습니다"
+      );
     }
   };
 
@@ -135,42 +146,35 @@ const Page = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      // Create a new user account
-      await account.create(
-        ID.unique(),
-        authForm.email,
-        authForm.password,
-        authForm.name
-      );
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: authForm.email,
+          password: authForm.password,
+          name: authForm.name,
+        }),
+      });
 
-      // After creating account, log the user in with the correct method
-      await account.createEmailPasswordSession(
-        authForm.email,
-        authForm.password
-      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "계정 생성 실패");
+      }
 
       setIsTeacherUser(true);
       setShowAuthModal(false);
       setError(null);
     } catch (error) {
       console.error("Registration error:", error);
-
-      // More detailed error message
-      let errorMessage = "계정 생성 실패";
-      if (error.code === 409) {
-        errorMessage = "이미 사용 중인 이메일입니다.";
-      } else if (error.code === 400) {
-        errorMessage = "유효하지 않은 이메일 또는 비밀번호입니다.";
-      }
-
-      setError(errorMessage);
+      setError(error.message || "계정 생성 실패");
     }
   };
 
   // Handle logout
   const handleLogout = async () => {
     try {
-      await account.deleteSession("current");
+      await fetch("/api/auth/logout", { method: "POST" });
       setIsTeacherUser(false);
     } catch (error) {
       console.error("Logout error:", error);
@@ -228,62 +232,33 @@ const Page = () => {
     }
 
     try {
-      // Update event in Appwrite
-      await databases.updateDocument(
-        AppwriteConfig.databaseId,
-        AppwriteConfig.calendarEventsCollectionId,
-        editTask.id,
-        {
+      const response = await fetch(`/api/events/${editTask.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           title: editTask.title,
           date: editTask.date,
           subject: editTask.subject || "",
           description: editTask.description || "",
-        }
-      );
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update task");
+      }
 
       // Update local state
       const updatedEvents = events.map((event) =>
-        event.id === editTask.id
-          ? {
-              ...event,
-              title: editTask.title,
-              start: editTask.date,
-              subject: editTask.subject || "",
-              description: editTask.description || "",
-            }
-          : event
+        event.id === editTask.id ? data.event : event
       );
 
       setEvents(updatedEvents);
-
-      // If this event is part of the date tasks, update that as well
-      if (
-        showDateModal &&
-        tasksForDate.some((task) => task.id === editTask.id)
-      ) {
-        const updatedTasks = tasksForDate.map((task) =>
-          task.id === editTask.id
-            ? {
-                ...task,
-                title: editTask.title,
-                start: editTask.date,
-                subject: editTask.subject || "",
-                description: editTask.description || "",
-              }
-            : task
-        );
-        setTasksForDate(updatedTasks);
-      }
-
-      // Close the edit modal
       setShowEditModal(false);
-
-      // Show a success message
-      setError("일정이 성공적으로 업데이트되었습니다.");
-      setTimeout(() => setError(null), 3000);
     } catch (error) {
       console.error("Error updating task:", error);
-      setError("Failed to update task: " + error.message);
+      setError(error.message || "Failed to update task");
     }
   };
 
@@ -296,30 +271,25 @@ const Page = () => {
     }
 
     try {
-      // Add event to Appwrite
-      const response = await databases.createDocument(
-        AppwriteConfig.databaseId,
-        AppwriteConfig.calendarEventsCollectionId,
-        ID.unique(),
-        {
+      const response = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           title: newTask.title,
           date: newTask.date,
           subject: newTask.subject || "",
           description: newTask.description || "",
-        }
-      );
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to add task");
+      }
 
       // Add new event to the calendar
-      setEvents([
-        ...events,
-        {
-          id: response.$id,
-          title: response.title,
-          start: response.date,
-          subject: response.subject || "",
-          description: response.description || "",
-        },
-      ]);
+      setEvents([...events, data.event]);
 
       // Reset form and close modal
       setNewTask({
@@ -331,7 +301,7 @@ const Page = () => {
       setShowModal(false);
     } catch (error) {
       console.error("Error adding task:", error);
-      setError("Failed to add task: " + error.message);
+      setError(error.message || "Failed to add task");
     }
   };
 
@@ -364,12 +334,14 @@ const Page = () => {
     }
 
     try {
-      // Delete from Appwrite
-      await databases.deleteDocument(
-        AppwriteConfig.databaseId,
-        AppwriteConfig.calendarEventsCollectionId,
-        eventId
-      );
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete task");
+      }
 
       // Update local state
       setEvents(events.filter((event) => event.id !== eventId));
@@ -379,20 +351,9 @@ const Page = () => {
         setShowViewModal(false);
         setSelectedEvent(null);
       }
-
-      // If we're in the date modal, update the tasks for that date
-      if (showDateModal) {
-        setTasksForDate(tasksForDate.filter((task) => task.id !== eventId));
-
-        // If no tasks left for this date, close the modal
-        if (tasksForDate.length === 1) {
-          setShowDateModal(false);
-          setSelectedDate(null);
-        }
-      }
     } catch (error) {
       console.error("Error deleting task:", error);
-      setError("Failed to delete task");
+      setError(error.message || "Failed to delete task");
     }
   };
 

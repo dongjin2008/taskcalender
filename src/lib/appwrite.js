@@ -15,47 +15,37 @@ if (isServer) {
     )
     .setProject(process.env.APPWRITE_PROJECT_ID || "");
 } else {
-  // Client-side configuration - use API endpoints instead of direct DB access
-  // We'll need to create an API route to securely handle client-side requests
-  client
-    .setEndpoint(process.env.NEXT_PUBLIC_API_ENDPOINT || "/api")
-    .setProject("client"); // This can be any placeholder value
+  // For client-side, we don't initialize Appwrite directly
+  // All Appwrite operations will go through our API routes
 }
 
-// Initialize Appwrite services
-const account = new Account(client);
-const databases = new Databases(client);
+// Initialize Appwrite services - only used server-side
+const account = isServer ? new Account(client) : null;
+const databases = isServer ? new Databases(client) : null;
 
 // App configuration - keep private details server-side only
 const AppwriteConfig = {
-  // Use variables without exposing them to client
   databaseId: isServer ? process.env.APPWRITE_DATABASE_ID : "",
   calendarEventsCollectionId: isServer
     ? process.env.APPWRITE_EVENTS_COLLECTION_ID
     : "",
-
-  // Parse allowed domains from environment variable
-  get allowedDomains() {
-    try {
-      if (process.env.ALLOWED_DOMAINS) {
-        return JSON.parse(process.env.ALLOWED_DOMAINS);
-      }
-    } catch (e) {
-      console.error("Error parsing ALLOWED_DOMAINS:", e);
-    }
-
-    return [];
-  },
 };
 
-// Helper function to check if the current user is authenticated
+// For client-side authentication checks, use a session cookie or token approach
 const isTeacher = async () => {
+  if (isServer) {
+    return false; // Server-side rendering path
+  }
+
   try {
-    const user = await account.get();
-    return !!user.$id;
+    // Use an API endpoint to check authentication
+    const response = await fetch("/api/auth/status");
+    const data = await response.json();
+    return data.isAuthenticated;
   } catch (error) {
+    console.error("Auth check error:", error);
     return false;
   }
 };
 
-export { client, account, databases, AppwriteConfig, isTeacher, ID };
+export { client, account, databases, AppwriteConfig, isTeacher, ID, isServer };
