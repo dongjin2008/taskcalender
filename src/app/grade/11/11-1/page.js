@@ -386,55 +386,64 @@ const Page = () => {
     setShowViewModal(true);
   };
 
-  // Check if loaded in an allowed iframe
+  // State to track iframe permission
+  const [isAllowed, setIsAllowed] = useState(true); // Default to true to prevent flickering
+
+  // Check if loaded in an allowed iframe or if direct access is allowed
   useEffect(() => {
-    // Function to check if the page is in an iframe
-    const isInIframe = () => {
+    // We can't access parent domain directly due to CORS, so use a different approach
+    const checkFramePermission = async () => {
       try {
-        return window !== window.top;
-      } catch (e) {
-        return true; // If we can't access window.top due to CORS, we're in an iframe
-      }
-    };
+        // First check if we're in an iframe
+        const inIframe = window !== window.top;
 
-    // Function to check if the parent domain is allowed
-    const checkParentDomain = () => {
-      try {
-        // Try to get the parent domain
-        const parentDomain = window.parent.location.hostname;
-
-        // Check if parent domain is in allowed list
-        const allowed = ALLOWED_PARENT_DOMAINS.some(
-          (domain) =>
-            parentDomain === domain || parentDomain.endsWith(`.${domain}`)
-        );
-
-        return allowed;
-      } catch (e) {
-        // If we can't access parent due to CORS, assume it's not allowed
-        console.error("Cannot access parent domain:", e);
-        return false;
-      }
-    };
-
-    // Check if we're in an iframe and it's from an allowed domain
-    const inIframe = isInIframe();
-    const allowedDomain = inIframe && checkParentDomain();
-
-    setIsAllowed(allowedDomain);
-    setLoading(false);
-
-    // Additional protection: Add event listener to prevent being framed by other sites
-    if (!inIframe || !allowedDomain) {
-      try {
-        // If we detect we're in an iframe but not allowed, try to break out
-        if (window.top !== window) {
-          window.top.location = window.location;
+        if (!inIframe) {
+          // Not in an iframe - check if direct access is allowed via API
+          try {
+            const response = await fetch("/api/access-check");
+            const { directAccessAllowed } = await response.json();
+            setIsAllowed(directAccessAllowed);
+          } catch (error) {
+            console.error("Failed to check access permission:", error);
+            setIsAllowed(false);
+          }
+          return;
         }
-      } catch (e) {
-        // Cannot access parent window, likely due to security restrictions
+
+        // We are in an iframe, check if the referrer is allowed
+        const referrer = document.referrer;
+
+        if (!referrer) {
+          // No referrer information, deny access
+          setIsAllowed(false);
+          return;
+        }
+
+        // Parse the referrer URL to get domain
+        try {
+          const referrerUrl = new URL(referrer);
+          const referrerDomain = referrerUrl.hostname;
+
+          // Check if the referrer domain is in our allowed list
+          // Note: We're not accessing parent.location here, just checking the referrer
+          const allowedDomains = ["srnschool.org"]; // Get from env or config
+          const isAllowedReferrer = allowedDomains.some(
+            (domain) =>
+              referrerDomain === domain || referrerDomain.endsWith(`.${domain}`)
+          );
+
+          setIsAllowed(isAllowedReferrer);
+        } catch (error) {
+          console.error("Error checking referrer:", error);
+          setIsAllowed(false);
+        }
+      } catch (error) {
+        console.error("Frame permission check error:", error);
+        setIsAllowed(false);
       }
-    }
+    };
+
+    checkFramePermission();
   }, []);
 
   // Show access denied if not in allowed iframe
