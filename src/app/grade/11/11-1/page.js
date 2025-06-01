@@ -116,15 +116,22 @@ const Page = () => {
     }
   };
 
-  // Handle login
+  // Handle login - improve your existing handler
   const handleLogin = async (e) => {
     e.preventDefault();
     setError(null); // Clear any existing errors
 
     try {
+      console.log("Attempting to login with:", authForm.email);
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // Add headers to prevent caching
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
         body: JSON.stringify({
           email: authForm.email,
           password: authForm.password,
@@ -135,23 +142,68 @@ const Page = () => {
       const data = await response.json();
 
       if (!response.ok) {
+        console.error("Login failed:", data);
         throw new Error(data.error || "로그인 실패");
       }
 
       console.log("Login successful:", data);
 
+      // Reset form after successful login
+      setAuthForm({
+        email: "",
+        password: "",
+        name: "",
+      });
+
       // Set user as authenticated
       setIsTeacherUser(true);
       setShowAuthModal(false);
-      setError(null);
 
-      // Optional - show a success toast
+      // Refresh auth status to ensure it's updated
+      await checkAuthStatus();
+
+      // Optional: Show success message
       alert("로그인 성공!");
     } catch (error) {
       console.error("Login error:", error);
       setError(
         error.message || "로그인 실패: 이메일이나 비밀번호가 올바르지 않습니다"
       );
+
+      // Clear password on failed login for security
+      setAuthForm({
+        ...authForm,
+        password: "",
+      });
+    }
+  };
+
+  // Add a separate function for checking auth status - update your existing function
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch("/api/auth/status", {
+        credentials: "include", // Important for cookies
+        cache: "no-store", // Prevent caching
+        // Force refresh by adding timestamp
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+
+      if (!response.ok) {
+        console.log("Auth check returned not OK status:", response.status);
+        setIsTeacherUser(false);
+        return;
+      }
+
+      const data = await response.json();
+      console.log("Auth status check result:", data);
+
+      setIsTeacherUser(data.isAuthenticated);
+    } catch (error) {
+      console.error("Auth status check error:", error);
+      setIsTeacherUser(false);
     }
   };
 
@@ -202,10 +254,29 @@ const Page = () => {
   // Handle logout
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      setIsTeacherUser(false);
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include", // Important for cookies
+      });
+
+      if (response.ok) {
+        setIsTeacherUser(false);
+
+        // Force refresh the auth status
+        await checkAuthStatus();
+
+        // Optional - show logout success message
+        alert("로그아웃되었습니다.");
+      } else {
+        const data = await response.json();
+        console.error("Logout failed:", data);
+        // Fallback - even if API fails, we can still log out the user locally
+        setIsTeacherUser(false);
+      }
     } catch (error) {
       console.error("Logout error:", error);
+      // Fallback - even if API fails, we can still log out the user locally
+      setIsTeacherUser(false);
     }
   };
 
@@ -1119,6 +1190,46 @@ const Page = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Debug section for authentication testing */}
+      {process.env.NODE_ENV !== "production" && (
+        <div className="mt-5 border-top pt-3">
+          <button
+            className="btn btn-sm btn-outline-secondary mb-2"
+            onClick={() => {
+              setShowDebug(!showDebug);
+              if (!showDebug) checkDebugInfo();
+            }}
+          >
+            {showDebug ? "Hide Debug Info" : "Show Debug Info"}
+          </button>
+
+          {showDebug && (
+            <div className="card">
+              <div className="card-body">
+                <h5 className="card-title">Debug Information</h5>
+                <p>Is Teacher: {isTeacherUser ? "Yes" : "No"}</p>
+                <p>Auth Mode: {authMode}</p>
+                <button
+                  className="btn btn-sm btn-secondary me-2"
+                  onClick={checkAuthStatus}
+                >
+                  Check Auth Status
+                </button>
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={checkDebugInfo}
+                >
+                  Check Cookies
+                </button>
+                <pre className="mt-3 bg-light p-3 rounded">
+                  {JSON.stringify(debugInfo, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

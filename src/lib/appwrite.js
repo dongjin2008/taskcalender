@@ -8,34 +8,39 @@ const client = new Client();
 
 // Configure client differently for server vs client
 if (isServer) {
-  // Server-side configuration - uses private env vars
-  client
-    .setEndpoint(
-      process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1"
-    )
-    .setProject(process.env.APPWRITE_PROJECT_ID || "");
+  // Server-side configuration
+  const endpoint =
+    process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
+  const projectId = process.env.APPWRITE_PROJECT_ID;
 
-  // Note: setSelfSigned is removed as it's not supported in your version
-  // If you need to ignore self-signed certificates, use Node.js environment settings instead
+  // Log configuration for debugging
+  console.log("Server Appwrite config:", {
+    endpoint,
+    projectId: projectId ? "Set (value hidden)" : "NOT SET", // Don't log actual project ID
+  });
 
-  // Alternative: If you need to handle self-signed certificates in development:
+  // Set up client
+  client.setEndpoint(endpoint).setProject(projectId || "");
+
+  // Log warning if project ID is missing
+  if (!projectId) {
+    console.warn("WARNING: Appwrite Project ID is not set!");
+  }
+
+  // Development mode settings
   if (process.env.NODE_ENV === "development") {
-    // This is a global Node.js setting, not part of Appwrite SDK
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     console.warn(
       "Warning: Accepting insecure certificates (development mode only)"
     );
   }
-} else {
-  // Client-side configuration
-  // No client-side initialization needed - using API routes
 }
 
-// Initialize Appwrite services - only used server-side
+// Initialize Appwrite services
 const account = isServer ? new Account(client) : null;
 const databases = isServer ? new Databases(client) : null;
 
-// App configuration - keep private details server-side only
+// App configuration
 const AppwriteConfig = {
   databaseId: isServer ? process.env.APPWRITE_DATABASE_ID : "",
   calendarEventsCollectionId: isServer
@@ -43,17 +48,25 @@ const AppwriteConfig = {
     : "",
 };
 
-// For client-side authentication checks, use a session cookie or token approach
+// Helper function to check if the current user is authenticated
 const isTeacher = async () => {
   if (isServer) {
-    return false; // Server-side rendering path
+    return false; // Server-side default
   }
 
   try {
     // Use an API endpoint to check authentication
-    const response = await fetch("/api/auth/status");
+    const response = await fetch("/api/auth/status", {
+      credentials: "include", // Important for cookies
+      cache: "no-store", // Prevent caching auth status
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
     const data = await response.json();
-    return data.isAuthenticated;
+    return !!data.isAuthenticated;
   } catch (error) {
     console.error("Auth check error:", error);
     return false;
