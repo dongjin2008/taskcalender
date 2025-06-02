@@ -13,7 +13,7 @@ export async function POST(request) {
 
     try {
       // Create a session
-      const session = await account.createEmailSession(email, password);
+      const session = await account.createEmailPasswordSession(email, password);
 
       // Return success
       return NextResponse.json({

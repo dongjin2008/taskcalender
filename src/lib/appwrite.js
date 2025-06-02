@@ -3,20 +3,40 @@ import { Client, Account, Databases, ID } from "appwrite";
 // Initialize the Appwrite client
 const client = new Client();
 
+// Get configuration from environment variables
+const appwriteEndpoint =
+  process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
+const appwriteProjectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "";
+
 // Configure the client with your Appwrite project details
-client
-  .setEndpoint("https://cloud.appwrite.io/v1") // Use your Appwrite endpoint
-  .setProject("YOUR_PROJECT_ID"); // Replace with your actual project ID
+client.setEndpoint(appwriteEndpoint).setProject(appwriteProjectId);
+
+// Log configuration in development mode (without exposing sensitive data)
+if (process.env.NODE_ENV === "development") {
+  console.log("Appwrite client configured with:", {
+    endpoint: appwriteEndpoint,
+    projectIdSet: !!appwriteProjectId,
+  });
+}
 
 // Initialize Appwrite services directly for client-side use
 const account = new Account(client);
 const databases = new Databases(client);
 
-// App configuration - add your database and collection IDs
+// App configuration from environment variables
 const AppwriteConfig = {
-  databaseId: "YOUR_DATABASE_ID",
-  calendarEventsCollectionId: "YOUR_EVENTS_COLLECTION_ID",
+  databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || "",
+  calendarEventsCollectionId:
+    process.env.NEXT_PUBLIC_APPWRITE_EVENTS_COLLECTION_ID || "",
 };
+
+// Log database config in development mode
+if (process.env.NODE_ENV === "development") {
+  console.log("Appwrite database config:", {
+    databaseIdSet: !!AppwriteConfig.databaseId,
+    eventsCollectionIdSet: !!AppwriteConfig.calendarEventsCollectionId,
+  });
+}
 
 export { client, account, databases, AppwriteConfig, ID };
 
@@ -29,7 +49,7 @@ const handleLogin = async (e) => {
     console.log("Attempting to login with:", authForm.email);
 
     // Use Appwrite SDK directly
-    const session = await account.createEmailSession(
+    const session = await account.createEmailPasswordSession(
       authForm.email,
       authForm.password
     );
@@ -87,7 +107,7 @@ const handleRegister = async (e) => {
 
     // Automatically login after registration
     try {
-      await account.createEmailSession(authForm.email, authForm.password);
+      await account.createEmailPasswordSession(authForm.email, authForm.password);
 
       // Set user as authenticated
       setIsTeacherUser(true);

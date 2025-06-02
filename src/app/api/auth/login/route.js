@@ -19,7 +19,7 @@ export async function POST(request) {
     }
 
     // Try to create a session
-    const session = await account.createEmailSession(email, password);
+    const session = await account.createEmailPasswordSession(email, password);
     console.log("Session created successfully:", session.userId);
 
     // Return success response

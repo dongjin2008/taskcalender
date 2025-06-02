@@ -48,7 +48,7 @@ export const fetchEvents = async (setLoading, setEvents, setError) => {
   }
 };
 
-// Handle login
+// Handle login - keep using createEmailPasswordSession as you already have
 export const handleLogin = async (
   e,
   authForm,
@@ -64,8 +64,8 @@ export const handleLogin = async (
   try {
     console.log("Attempting to login with:", authForm.email);
 
-    // Use Appwrite SDK directly
-    const session = await account.createEmailSession(
+    // This is correct - keep using createEmailPasswordSession
+    const session = await account.createEmailPasswordSession(
       authForm.email,
       authForm.password
     );
@@ -107,7 +107,7 @@ export const handleLogin = async (
   }
 };
 
-// Handle registration
+// Handle registration - keep using createEmailPasswordSession as you already have
 export const handleRegister = async (
   e,
   authForm,
@@ -134,9 +134,12 @@ export const handleRegister = async (
 
     console.log("Registration successful:", user);
 
-    // Automatically login after registration
+    // This is correct - keep using createEmailPasswordSession
     try {
-      await account.createEmailSession(authForm.email, authForm.password);
+      await account.createEmailPasswordSession(
+        authForm.email,
+        authForm.password
+      );
 
       // Set user as authenticated
       setIsTeacherUser(true);
