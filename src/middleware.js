@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+// DEVELOPMENT MODE FLAG - set to true to bypass all restrictions
+const BYPASS_RESTRICTIONS = true; // Set this to false when deploying to production
+
 // Get allowed domains from environment variables
 // Default to empty array if not set (will block all access)
 const getAllowedDomains = () => {
@@ -24,6 +27,14 @@ const getAllowedDomains = () => {
 const ALLOWED_PARENT_DOMAINS = getAllowedDomains();
 
 export function middleware(request) {
+  // DEVELOPMENT BYPASS - Skip all checks if BYPASS_RESTRICTIONS is true
+  if (BYPASS_RESTRICTIONS || process.env.NODE_ENV === "development") {
+    console.log("⚠️ Access restrictions bypassed - development mode");
+    return NextResponse.next();
+  }
+
+  // All the original code below will only run when BYPASS_RESTRICTIONS is false
+
   // Get the referer header
   const referer = request.headers.get("referer");
 
