@@ -20,7 +20,10 @@ import {
 } from "@/lib/appwriteHandlers";
 
 const Page = () => {
-  // State variables here
+  // Add this state to track client-side mounting
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Existing state variables
   const [events, setEvents] = useState([]);
   const [isTeacherUser, setIsTeacherUser] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -42,7 +45,7 @@ const Page = () => {
   // Form state variables
   const [newTask, setNewTask] = useState({
     title: "",
-    date: new Date().toISOString().split("T")[0],
+    date: "", // Remove initial date value to prevent hydration mismatch
     description: "",
     subject: "",
   });
@@ -69,12 +72,24 @@ const Page = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [appwriteStatus, setAppwriteStatus] = useState("Unknown");
 
+  // This effect sets isMounted to true after component mounts on client
   useEffect(() => {
-    // DEVELOPMENT MODE - No iframe checking for local development
-    // Always proceed with initialization
-    checkAuthStatus(setIsTeacherUser);
-    fetchEvents(setLoading, setEvents, setError);
+    setIsMounted(true);
+
+    // Set initial date here to avoid hydration mismatch
+    setNewTask((prev) => ({
+      ...prev,
+      date: new Date().toISOString().split("T")[0],
+    }));
   }, []);
+
+  useEffect(() => {
+    // Only run these effects on the client side
+    if (isMounted) {
+      checkAuthStatus(setIsTeacherUser);
+      fetchEvents(setLoading, setEvents, setError);
+    }
+  }, [isMounted]);
 
   // Events for date clicking, etc.
   const handleDateClick = (arg) => {
@@ -240,14 +255,14 @@ const Page = () => {
   // You can also update your checkAuthStatus wrapper to handle errors better
   const checkAuthStatusDebug = () => {
     checkAuthStatus(setIsTeacherUser);
-    
+
     // Add a notification about the check
     setNotification({
       show: true,
-      message: isTeacherUser 
-        ? "인증 상태: 로그인됨" 
+      message: isTeacherUser
+        ? "인증 상태: 로그인됨"
         : "인증 상태: 로그인되지 않음",
-      type: isTeacherUser ? "success" : "info"
+      type: isTeacherUser ? "success" : "info",
     });
   };
 
@@ -290,6 +305,16 @@ const Page = () => {
     }
   };
 
+  // For date-related rendering, handle null cases
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+    try {
+      return new Date(dateString).toLocaleDateString("ko-KR");
+    } catch (e) {
+      return "";
+    }
+  };
+
   // Calendar styles
   const calendarStyles = `
     .fc-event {
@@ -303,15 +328,37 @@ const Page = () => {
     }
   `;
 
+  // If not mounted yet, render a minimal placeholder
+  if (!isMounted) {
+    return (
+      <div className="container mt-5 position-relative">
+        <style>{calendarStyles}</style>
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <h1 className="mb-0">느헤미아반 달력</h1>
+          <button className="btn btn-primary" disabled>
+            교사 로그인
+          </button>
+        </div>
+        <div
+          className="loading-placeholder"
+          style={{
+            height: "600px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular render with client-side data
   return (
     <div className="container mt-5 position-relative">
-      {/* Development mode banner */}
-      {process.env.NODE_ENV === "development" && (
-        <div className="alert alert-warning mb-3" role="alert">
-          <strong>개발 모드:</strong> 접근 제한이 일시적으로 비활성화되었습니다.
-        </div>
-      )}
-
       <style>{calendarStyles}</style>
 
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -370,30 +417,45 @@ const Page = () => {
 
       {/* Calendar component */}
       <div className="calendar-container">
-        <FullCalendar
-          plugins={[
-            dayGridPlugin,
-            timeGridPlugin,
-            interactionPlugin,
-            bootstrap5Plugin,
-          ]}
-          initialView="dayGridMonth"
-          headerToolbar={{
-            left: "prev,next",
-            center: "title",
-            right: "",
-          }}
-          locale={koLocale}
-          themeSystem="bootstrap5"
-          height={600}
-          events={events}
-          eventClick={handleEventClick}
-          dateClick={handleDateClick}
-        />
+        {!loading ? (
+          <FullCalendar
+            plugins={[
+              dayGridPlugin,
+              timeGridPlugin,
+              interactionPlugin,
+              bootstrap5Plugin,
+            ]}
+            initialView="dayGridMonth"
+            headerToolbar={{
+              left: "prev,next",
+              center: "title",
+              right: "",
+            }}
+            locale={koLocale}
+            themeSystem="bootstrap5"
+            height={600}
+            events={events}
+            eventClick={handleEventClick}
+            dateClick={handleDateClick}
+          />
+        ) : (
+          <div
+            style={{
+              height: "600px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Teacher-only controls */}
-      {(isTeacherUser || process.env.NODE_ENV === "development") && (
+      {isTeacherUser && (
         <div className="d-flex justify-content-end mt-3">
           <button
             className="btn btn-primary"
@@ -404,119 +466,126 @@ const Page = () => {
         </div>
       )}
 
+      {/* All modals are rendered conditionally on the client side */}
       {/* Auth modal */}
-      {showAuthModal && (
-        <div className="modal-overlay" onClick={handleBackdropClick}>
-          <div
-            className="modal-backdrop fade show"
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              zIndex: 1040,
-            }}
-          ></div>
-          <div
-            className="modal fade show d-block"
-            tabIndex="-1"
-            style={{ zIndex: 1050 }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    {authMode === "login" ? "교사 로그인" : "교사 등록"}
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowAuthModal(false)}
-                    aria-label="Close"
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <form
-                    onSubmit={
-                      authMode === "login"
-                        ? wrappedHandleLogin
-                        : wrappedHandleRegister
-                    }
-                  >
-                    {authMode === "register" && (
+      {isMounted &&
+        showAuthModal &&
+        ReactDOM.createPortal(
+          <div className="modal-overlay" onClick={handleBackdropClick}>
+            <div
+              className="modal-backdrop fade show"
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                zIndex: 1040,
+              }}
+            ></div>
+            <div
+              className="modal fade show d-block"
+              tabIndex="-1"
+              style={{ zIndex: 1050 }}
+            >
+              <div className="modal-dialog modal-dialog-centered">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title">
+                      {authMode === "login" ? "교사 로그인" : "교사 등록"}
+                    </h5>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => setShowAuthModal(false)}
+                      aria-label="Close"
+                    ></button>
+                  </div>
+                  <div className="modal-body">
+                    <form
+                      onSubmit={
+                        authMode === "login"
+                          ? wrappedHandleLogin
+                          : wrappedHandleRegister
+                      }
+                    >
+                      {authMode === "register" && (
+                        <div className="mb-3">
+                          <label htmlFor="teacherName" className="form-label">
+                            이름
+                          </label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            id="teacherName"
+                            value={authForm.name}
+                            onChange={(e) =>
+                              setAuthForm({ ...authForm, name: e.target.value })
+                            }
+                            required
+                          />
+                        </div>
+                      )}
+
                       <div className="mb-3">
-                        <label htmlFor="teacherName" className="form-label">
-                          이름
+                        <label htmlFor="teacherEmail" className="form-label">
+                          이메일
                         </label>
                         <input
-                          type="text"
+                          type="email"
                           className="form-control"
-                          id="teacherName"
-                          value={authForm.name}
+                          id="teacherEmail"
+                          value={authForm.email}
                           onChange={(e) =>
-                            setAuthForm({ ...authForm, name: e.target.value })
+                            setAuthForm({ ...authForm, email: e.target.value })
                           }
                           required
                         />
                       </div>
-                    )}
-
-                    <div className="mb-3">
-                      <label htmlFor="teacherEmail" className="form-label">
-                        이메일
-                      </label>
-                      <input
-                        type="email"
-                        className="form-control"
-                        id="teacherEmail"
-                        value={authForm.email}
-                        onChange={(e) =>
-                          setAuthForm({ ...authForm, email: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label htmlFor="teacherPassword" className="form-label">
-                        비밀번호
-                      </label>
-                      <input
-                        type="password"
-                        className="form-control"
-                        id="teacherPassword"
-                        value={authForm.password}
-                        onChange={(e) =>
-                          setAuthForm({ ...authForm, password: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="modal-footer">
-                      <button
-                        type="button"
-                        className="btn btn-link"
-                        onClick={() =>
-                          setAuthMode(
-                            authMode === "login" ? "register" : "login"
-                          )
-                        }
-                      >
-                        {authMode === "login"
-                          ? "계정이 없습니까? 등록하세요."
-                          : "계정이 이미 있습니까? 로그인하세요."}
-                      </button>
-                      <button type="submit" className="btn btn-primary">
-                        {authMode === "login" ? "로그인" : "등록"}
-                      </button>
-                    </div>
-                  </form>
+                      <div className="mb-3">
+                        <label htmlFor="teacherPassword" className="form-label">
+                          비밀번호
+                        </label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          id="teacherPassword"
+                          value={authForm.password}
+                          onChange={(e) =>
+                            setAuthForm({
+                              ...authForm,
+                              password: e.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </div>
+                      <div className="modal-footer">
+                        <button
+                          type="button"
+                          className="btn btn-link"
+                          onClick={() =>
+                            setAuthMode(
+                              authMode === "login" ? "register" : "login"
+                            )
+                          }
+                        >
+                          {authMode === "login"
+                            ? "계정이 없습니까? 등록하세요."
+                            : "계정이 이미 있습니까? 로그인하세요."}
+                        </button>
+                        <button type="submit" className="btn btn-primary">
+                          {authMode === "login" ? "로그인" : "등록"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* All the other modals */}
       {/* ...add task modal */}
@@ -920,52 +989,6 @@ const Page = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Debug panel */}
-      {process.env.NODE_ENV !== "production" && (
-        <div className="mt-5 border-top pt-3">
-          <button
-            className="btn btn-sm btn-outline-secondary mb-2"
-            onClick={() => {
-              setShowDebug(!showDebug);
-              if (!showDebug) checkDebugInfo();
-            }}
-          >
-            {showDebug ? "Hide Debug Info" : "Show Debug Info"}
-          </button>
-
-          {showDebug && (
-            <div className="card">
-              <div className="card-body">
-                <h5 className="card-title">Debug Information</h5>
-                <p>Is Teacher: {isTeacherUser ? "Yes" : "No"}</p>
-                <p>Auth Mode: {authMode}</p>
-                <button
-                  className="btn btn-sm btn-secondary me-2"
-                  onClick={checkAuthStatusDebug}
-                >
-                  Check Auth Status
-                </button>
-                <button
-                  className="btn btn-sm btn-secondary"
-                  onClick={checkDebugInfo}
-                >
-                  Check Appwrite
-                </button>
-                <button
-                  className="btn btn-sm btn-info me-2"
-                  onClick={testAppwriteConnection}
-                >
-                  Test Appwrite Connection
-                </button>
-                <pre className="mt-3 bg-light p-3 rounded">
-                  {JSON.stringify(debugInfo, null, 2)}
-                </pre>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
