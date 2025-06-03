@@ -12,7 +12,12 @@ export const checkAuthStatus = async (setIsTeacherUser) => {
   } catch (error) {
     // Expected error if not logged in
     setIsTeacherUser(false);
-    console.log("User is not authenticated");
+    // Only log as an error if it's not a 401
+    if (error.code !== 401) {
+      console.error("Authentication check failed:", error);
+    } else {
+      console.log("User is not authenticated");
+    }
     return false;
   }
 };

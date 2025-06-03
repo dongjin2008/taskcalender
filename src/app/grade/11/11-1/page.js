@@ -67,6 +67,7 @@ const Page = () => {
   // Debug state
   const [debugInfo, setDebugInfo] = useState({});
   const [showDebug, setShowDebug] = useState(false);
+  const [appwriteStatus, setAppwriteStatus] = useState("Unknown");
 
   useEffect(() => {
     // DEVELOPMENT MODE - No iframe checking for local development
@@ -200,21 +201,91 @@ const Page = () => {
   // Debug info checker
   const checkDebugInfo = async () => {
     try {
-      const user = await account.get().catch(() => null);
+      // Try to get the user account
+      let user = null;
+      let authStatus = "Not authenticated";
 
+      try {
+        user = await account.get();
+        authStatus = "Authenticated";
+      } catch (authError) {
+        // Expected error if not logged in
+        console.log("Not logged in:", authError.message);
+      }
+
+      // Set debug info regardless of authentication status
       setDebugInfo({
         isTeacherUser,
         authMode,
+        authStatus,
         hasUser: !!user,
         userId: user ? user.$id : null,
+        email: user ? user.email : null,
         eventCount: events.length,
         appwriteConfigured: true,
         timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV,
       });
     } catch (error) {
+      // Handle any other unexpected errors
+      console.error("Debug info error:", error);
       setDebugInfo({
         error: error.message,
         isTeacherUser,
+        errorTimestamp: new Date().toISOString(),
+      });
+    }
+  };
+
+  // You can also update your checkAuthStatus wrapper to handle errors better
+  const checkAuthStatusDebug = () => {
+    checkAuthStatus(setIsTeacherUser);
+    
+    // Add a notification about the check
+    setNotification({
+      show: true,
+      message: isTeacherUser 
+        ? "인증 상태: 로그인됨" 
+        : "인증 상태: 로그인되지 않음",
+      type: isTeacherUser ? "success" : "info"
+    });
+  };
+
+  // Test Appwrite connection
+  const testAppwriteConnection = async () => {
+    try {
+      // Try a lighter weight API call that doesn't require authentication
+      const health = await fetch("https://cloud.appwrite.io/v1/health");
+      const data = await health.json();
+
+      setAppwriteStatus("Connected");
+      setDebugInfo((prev) => ({
+        ...prev,
+        appwriteHealth: data,
+        connectionStatus: "Connected",
+        endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT,
+        projectIdConfigured: !!process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID,
+      }));
+
+      setNotification({
+        show: true,
+        message: "Appwrite 서비스에 성공적으로 연결되었습니다.",
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Appwrite connection test failed:", error);
+      setAppwriteStatus("Failed");
+      setDebugInfo((prev) => ({
+        ...prev,
+        connectionError: error.message,
+        connectionStatus: "Failed",
+        testTime: new Date().toISOString(),
+      }));
+
+      setNotification({
+        show: true,
+        message: "Appwrite 서비스 연결 테스트 실패: " + error.message,
+        type: "danger",
       });
     }
   };
@@ -564,7 +635,293 @@ const Page = () => {
       )}
 
       {/* Other modals - edit, view, date modals etc. */}
-      {/* ... */}
+      {/* View event modal */}
+      {showViewModal && selectedEvent && (
+        <div className="modal-overlay" onClick={handleBackdropClick}>
+          <div
+            className="modal-backdrop fade show"
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              zIndex: 1040,
+            }}
+          ></div>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+            style={{ zIndex: 1050 }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">{selectedEvent.title}</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowViewModal(false)}
+                    aria-label="Close"
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p>
+                    <strong>날짜:</strong>{" "}
+                    {new Date(selectedEvent.start).toLocaleDateString("ko-KR")}
+                  </p>
+                  {selectedEvent.subject && (
+                    <p>
+                      <strong>과목:</strong> {selectedEvent.subject}
+                    </p>
+                  )}
+                  {selectedEvent.description && (
+                    <div>
+                      <strong>설명:</strong>
+                      <p>{selectedEvent.description}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  {isTeacherUser && (
+                    <>
+                      <button
+                        className="btn btn-danger me-auto"
+                        onClick={() =>
+                          wrappedHandleDeleteEvent(selectedEvent.id)
+                        }
+                      >
+                        삭제
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleEditClick}
+                      >
+                        수정
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowViewModal(false)}
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit event modal */}
+      {showEditModal && (
+        <div className="modal-overlay" onClick={handleBackdropClick}>
+          <div
+            className="modal-backdrop fade show"
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              zIndex: 1040,
+            }}
+          ></div>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+            style={{ zIndex: 1050 }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">일정 수정</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowEditModal(false)}
+                    aria-label="Close"
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <form onSubmit={wrappedHandleEditSubmit}>
+                    <div className="mb-3">
+                      <label htmlFor="editTaskTitle" className="form-label">
+                        제목
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="editTaskTitle"
+                        value={editTask.title}
+                        onChange={(e) =>
+                          setEditTask({ ...editTask, title: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label htmlFor="editTaskSubject" className="form-label">
+                        과목
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="editTaskSubject"
+                        value={editTask.subject || ""}
+                        onChange={(e) =>
+                          setEditTask({ ...editTask, subject: e.target.value })
+                        }
+                        placeholder="과목을 입력하세요 (예: 수학, 과학)"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label htmlFor="editTaskDate" className="form-label">
+                        날짜
+                      </label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        id="editTaskDate"
+                        value={editTask.date}
+                        onChange={(e) =>
+                          setEditTask({ ...editTask, date: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label
+                        htmlFor="editTaskDescription"
+                        className="form-label"
+                      >
+                        설명 (선택)
+                      </label>
+                      <textarea
+                        className="form-control"
+                        id="editTaskDescription"
+                        rows="3"
+                        value={editTask.description}
+                        onChange={(e) =>
+                          setEditTask({
+                            ...editTask,
+                            description: e.target.value,
+                          })
+                        }
+                      ></textarea>
+                    </div>
+                    <div className="modal-footer">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setShowEditModal(false)}
+                      >
+                        취소
+                      </button>
+                      <button type="submit" className="btn btn-primary">
+                        저장
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Date events modal */}
+      {showDateModal && selectedDate && (
+        <div className="modal-overlay" onClick={handleBackdropClick}>
+          <div
+            className="modal-backdrop fade show"
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              zIndex: 1040,
+            }}
+          ></div>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+            style={{ zIndex: 1050 }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    {new Date(selectedDate).toLocaleDateString("ko-KR")} 일정
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowDateModal(false)}
+                    aria-label="Close"
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  {tasksForDate.length > 0 ? (
+                    <div>
+                      <h6>이날의 일정:</h6>
+                      <ul className="list-group">
+                        {tasksForDate.map((task) => (
+                          <li
+                            key={task.id}
+                            className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                            onClick={() => handleViewTask(task)}
+                            style={{ cursor: "pointer" }}
+                          >
+                            <div>
+                              <strong>{task.title}</strong>
+                              {task.subject && (
+                                <span className="badge bg-info ms-2">
+                                  {task.subject}
+                                </span>
+                              )}
+                            </div>
+                            <i className="bi bi-chevron-right"></i>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className="text-center">이날의 일정이 없습니다.</p>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  {isTeacherUser && (
+                    <button
+                      className="btn btn-primary me-auto"
+                      onClick={() => {
+                        setNewTask({
+                          ...newTask,
+                          date: selectedDate,
+                        });
+                        setShowDateModal(false);
+                        setShowModal(true);
+                      }}
+                    >
+                      이날 일정 추가
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowDateModal(false)}
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Debug panel */}
       {process.env.NODE_ENV !== "production" && (
@@ -587,7 +944,7 @@ const Page = () => {
                 <p>Auth Mode: {authMode}</p>
                 <button
                   className="btn btn-sm btn-secondary me-2"
-                  onClick={() => checkAuthStatus(setIsTeacherUser)}
+                  onClick={checkAuthStatusDebug}
                 >
                   Check Auth Status
                 </button>
@@ -596,6 +953,12 @@ const Page = () => {
                   onClick={checkDebugInfo}
                 >
                   Check Appwrite
+                </button>
+                <button
+                  className="btn btn-sm btn-info me-2"
+                  onClick={testAppwriteConnection}
+                >
+                  Test Appwrite Connection
                 </button>
                 <pre className="mt-3 bg-light p-3 rounded">
                   {JSON.stringify(debugInfo, null, 2)}
