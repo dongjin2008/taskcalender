@@ -467,9 +467,9 @@ const Page = () => {
             ]}
             initialView="dayGridMonth"
             headerToolbar={{
-              left: "prev,next",
+              left: "prev",
               center: "title",
-              right: "",
+              right: "next",
             }}
             locale={koLocale}
             themeSystem="bootstrap5"
