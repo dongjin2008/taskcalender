@@ -37,6 +37,12 @@ const Page = () => {
     type: "info",
   });
 
+  // Add a state to track the current view month
+  const [currentViewMonth, setCurrentViewMonth] = useState(null);
+
+  // Add a state to track login state changes - MOVE THIS HERE
+  const [authRefreshTrigger, setAuthRefreshTrigger] = useState(0);
+
   // More state variables for UI
   const [showModal, setShowModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -75,6 +81,9 @@ const Page = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [appwriteStatus, setAppwriteStatus] = useState("Unknown");
 
+  // Add loading state
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+
   // This effect sets isMounted to true after component mounts on client
   useEffect(() => {
     setIsMounted(true);
@@ -91,12 +100,23 @@ const Page = () => {
     if (isMounted) {
       const checkAuth = async () => {
         await checkAuthStatus(setIsTeacherUser, setIsVerified);
-        fetchEvents(setLoading, setEvents, setError);
+
+        // Set current month for initial load
+        const now = new Date();
+        const currentMonth = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          1
+        ).toISOString();
+        setCurrentViewMonth(currentMonth);
+
+        // Fetch events with the current month
+        fetchEvents(setLoading, setEvents, setError, currentMonth);
       };
 
       checkAuth();
     }
-  }, [isMounted]);
+  }, [isMounted, authRefreshTrigger]); // Now this works because authRefreshTrigger is defined above
 
   // Events for date clicking, etc.
   const handleDateClick = (arg) => {
@@ -146,14 +166,19 @@ const Page = () => {
 
   // Wrapper functions that check verification status
   const wrappedHandleLogin = (e) => {
+    setIsAuthLoading(true);
     handleLogin(
       e,
       authForm,
       setError,
       setIsTeacherUser,
+      setIsVerified,
       setShowAuthModal,
       setNotification
-    );
+    ).finally(() => {
+      setIsAuthLoading(false);
+      setAuthRefreshTrigger((prev) => prev + 1);
+    });
   };
 
   const wrappedHandleRegister = (e) => {
@@ -363,6 +388,53 @@ const Page = () => {
     .fc-daygrid-day:hover {
       background-color: rgba(0, 0, 0, 0.02);
     }
+    
+    /* Make the toolbar layout more balanced */
+    .fc-header-toolbar {
+      display: flex !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+    }
+    
+    /* Give equal space to each section */
+    .fc-toolbar-chunk {
+      flex: 1 !important;
+      display: flex !important;
+    }
+    
+    /* Align the buttons to their respective sides */
+    .fc-toolbar-chunk:first-child {
+      justify-content: flex-start !important;
+    }
+    
+    .fc-toolbar-chunk:nth-child(2) {
+      justify-content: center !important;
+    }
+    
+    .fc-toolbar-chunk:last-child {
+      justify-content: flex-end !important;
+    }
+    
+    /* Make the title text centered */
+    .fc .fc-toolbar-title {
+      width: 100% !important;
+      text-align: center !important; 
+      font-weight: 500 !important;
+    }
+    
+    /* Loading indicator for month navigation */
+    .calendar-loading {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      z-index: 5;
+    }
   `;
 
   // If not mounted yet, render a minimal placeholder
@@ -456,42 +528,50 @@ const Page = () => {
       )}
 
       {/* Calendar component */}
-      <div className="calendar-container">
-        {!loading ? (
-          <FullCalendar
-            plugins={[
-              dayGridPlugin,
-              timeGridPlugin,
-              interactionPlugin,
-              bootstrap5Plugin,
-            ]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: "prev",
-              center: "title",
-              right: "next",
-            }}
-            locale={koLocale}
-            themeSystem="bootstrap5"
-            height={600}
-            events={events}
-            eventClick={handleEventClick}
-            dateClick={handleDateClick}
-          />
-        ) : (
-          <div
-            style={{
-              height: "600px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <div className="spinner-border text-primary" role="status">
+      <div className="calendar-container position-relative">
+        {loading && (
+          <div className="calendar-loading">
+            <div className="spinner-border spinner-border-sm text-primary me-2">
               <span className="visually-hidden">Loading...</span>
             </div>
+            일정 불러오는 중...
           </div>
         )}
+        <FullCalendar
+          plugins={[
+            dayGridPlugin,
+            timeGridPlugin,
+            interactionPlugin,
+            bootstrap5Plugin,
+          ]}
+          initialView="dayGridMonth"
+          headerToolbar={{
+            left: "prev",
+            center: "title",
+            right: "next",
+          }}
+          locale={koLocale}
+          themeSystem="bootstrap5"
+          height={600}
+          events={events}
+          eventClick={handleEventClick}
+          dateClick={handleDateClick}
+          datesSet={(dateInfo) => {
+            // When month view changes
+            const viewStart = dateInfo.start;
+            const monthStart = new Date(
+              viewStart.getFullYear(),
+              viewStart.getMonth(),
+              1
+            );
+            const monthString = monthStart.toISOString();
+
+            if (monthString !== currentViewMonth) {
+              setCurrentViewMonth(monthString);
+              fetchEvents(setLoading, setEvents, setError, monthString);
+            }
+          }}
+        />
       </div>
 
       {/* Teacher-only controls - update to disable the button when not verified */}
@@ -624,8 +704,27 @@ const Page = () => {
                             ? "계정이 없습니까? 등록하세요."
                             : "계정이 이미 있습니까? 로그인하세요."}
                         </button>
-                        <button type="submit" className="btn btn-primary">
-                          {authMode === "login" ? "로그인" : "등록"}
+                        <button
+                          type="submit"
+                          className="btn btn-primary"
+                          disabled={isAuthLoading}
+                        >
+                          {isAuthLoading ? (
+                            <>
+                              <span
+                                className="spinner-border spinner-border-sm me-2"
+                                role="status"
+                                aria-hidden="true"
+                              ></span>
+                              {authMode === "login"
+                                ? "로그인 중..."
+                                : "등록 중..."}
+                            </>
+                          ) : authMode === "login" ? (
+                            "로그인"
+                          ) : (
+                            "등록"
+                          )}
                         </button>
                       </div>
                     </form>

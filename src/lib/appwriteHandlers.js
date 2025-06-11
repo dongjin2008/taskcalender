@@ -1,5 +1,5 @@
 import { ID } from "appwrite";
-import { account, databases, AppwriteConfig } from "./appwrite";
+import { account, databases, AppwriteConfig, Query } from "./appwrite";
 
 // Check authentication status
 export const checkAuthStatus = async (setIsTeacherUser, setIsVerified) => {
@@ -22,31 +22,51 @@ export const checkAuthStatus = async (setIsTeacherUser, setIsVerified) => {
 };
 
 // Fetch calendar events
-export const fetchEvents = async (setLoading, setEvents, setError) => {
-  setLoading(true);
+export const fetchEvents = async (
+  setLoading,
+  setEvents,
+  setError,
+  targetMonth = null
+) => {
   try {
-    // Use Appwrite SDK directly
+    setLoading(true);
+
+    // Calculate date range (current month +/- 1 month)
+    const now = targetMonth ? new Date(targetMonth) : new Date();
+
+    // First day of previous month
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    // Last day of next month
+    const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+    // Format dates for querying
+    const startDate = prevMonth.toISOString().split("T")[0];
+    const endDate = nextMonthEnd.toISOString().split("T")[0];
+
+    // Query with date filters
     const response = await databases.listDocuments(
-      AppwriteConfig.databaseId,
-      AppwriteConfig.calendarEventsCollectionId
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+      process.env.NEXT_PUBLIC_APPWRITE_EVENTS_COLLECTION_ID,
+      [
+        Query.greaterThanEqual("date", startDate),
+        Query.lessThanEqual("date", endDate),
+        Query.limit(500), // Reasonable limit for 3 months
+      ]
     );
 
-    // Transform Appwrite documents to calendar events
-    const calendarEvents = response.documents.map((doc) => ({
+    const formattedEvents = response.documents.map((doc) => ({
       id: doc.$id,
       title: doc.title,
-      start: doc.date, // Assuming date is stored in 'date' field
-      description: doc.description || "",
+      start: doc.date,
       subject: doc.subject || "",
-      // Add any other fields you need
+      description: doc.description || "",
     }));
 
-    setEvents(calendarEvents);
-    return calendarEvents;
-  } catch (err) {
-    console.error("Error fetching events:", err);
-    setError("Failed to load calendar events");
-    return [];
+    setEvents(formattedEvents);
+  } catch (error) {
+    console.error("Error fetching events:", error);
+    setError("일정을 불러오는 중 오류가 발생했습니다.");
   } finally {
     setLoading(false);
   }
@@ -58,42 +78,52 @@ export const handleLogin = async (
   authForm,
   setError,
   setIsTeacherUser,
+  setIsVerified,
   setShowAuthModal,
   setNotification
 ) => {
   e.preventDefault();
-  setError(null); // Clear any existing errors
+
+  // Show loading state immediately
+  setNotification({
+    show: true,
+    message: "로그인 중...",
+    type: "info",
+  });
 
   try {
-    console.log("Attempting to login with:", authForm.email);
+    // Create session and get user info in parallel if possible
+    const sessionPromise = account.createEmailPasswordSession(
+      authForm.email,
+      authForm.password
+    );
 
-    // This is correct - keep using createEmailPasswordSession
-    await account.createEmailPasswordSession(authForm.email, authForm.password);
-
-    // Get the user - this includes verification status
+    await sessionPromise;
     const user = await account.get();
-    const isVerified = user.emailVerification; // Check if email is verified
 
+    // Update UI states
     setIsTeacherUser(true);
+    setIsVerified(user.emailVerification);
     setShowAuthModal(false);
 
-    if (!isVerified) {
-      setNotification({
-        show: true,
-        message:
-          "로그인되었지만 계정이 아직 검증되지 않았습니다. 관리자가 검증할 때까지 일정을 추가/수정/삭제할 수 없습니다.",
-        type: "warning",
-      });
-    } else {
-      setNotification({
-        show: true,
-        message: "성공적으로 로그인되었습니다.",
-        type: "success",
-      });
-    }
+    // Notification
+    setNotification({
+      show: true,
+      message: user.emailVerification
+        ? "성공적으로 로그인되었습니다."
+        : "로그인되었지만 계정이 아직 검증되지 않았습니다.",
+      type: user.emailVerification ? "success" : "warning",
+    });
   } catch (error) {
     console.error("Login error:", error);
     setError("로그인 중 오류가 발생했습니다: " + error.message);
+
+    // Clear loading notification
+    setNotification({
+      show: false,
+      message: "",
+      type: "info",
+    });
   }
 };
 

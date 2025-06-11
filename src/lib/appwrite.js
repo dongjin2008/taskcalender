@@ -1,4 +1,4 @@
-import { Client, Account, Databases, ID } from "appwrite";
+import { Client, Account, Databases, ID, Query } from "appwrite";
 
 // Initialize the Appwrite client
 const client = new Client();
@@ -38,4 +38,5 @@ if (process.env.NODE_ENV === "development") {
   });
 }
 
-export { client, account, databases, AppwriteConfig, ID };
+// Export everything needed
+export { client, account, databases, AppwriteConfig, ID, Query };
