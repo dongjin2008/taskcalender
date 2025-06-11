@@ -27,6 +27,8 @@ const Page = () => {
   // Existing state variables
   const [events, setEvents] = useState([]);
   const [isTeacherUser, setIsTeacherUser] = useState(false);
+  // Add verification state
+  const [isVerified, setIsVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState({
@@ -84,11 +86,15 @@ const Page = () => {
     }));
   }, []);
 
+  // Update this effect to check verification status
   useEffect(() => {
-    // Only run these effects on the client side
     if (isMounted) {
-      checkAuthStatus(setIsTeacherUser);
-      fetchEvents(setLoading, setEvents, setError);
+      const checkAuth = async () => {
+        await checkAuthStatus(setIsTeacherUser, setIsVerified);
+        fetchEvents(setLoading, setEvents, setError);
+      };
+
+      checkAuth();
     }
   }, [isMounted]);
 
@@ -138,7 +144,7 @@ const Page = () => {
     }
   };
 
-  // Wrap the handler functions with the required state params
+  // Wrapper functions that check verification status
   const wrappedHandleLogin = (e) => {
     handleLogin(
       e,
@@ -146,7 +152,6 @@ const Page = () => {
       setError,
       setIsTeacherUser,
       setShowAuthModal,
-      setAuthForm,
       setNotification
     );
   };
@@ -159,8 +164,7 @@ const Page = () => {
       setIsTeacherUser,
       setShowAuthModal,
       setAuthForm,
-      setNotification,
-      setAuthMode
+      setNotification
     );
   };
 
@@ -169,6 +173,17 @@ const Page = () => {
   };
 
   const wrappedHandleAddTask = (e) => {
+    e.preventDefault();
+    if (!isVerified) {
+      setNotification({
+        show: true,
+        message:
+          "계정이 아직 검증되지 않았습니다. 관리자가 검증할 때까지 일정을 추가할 수 없습니다.",
+        type: "warning",
+      });
+      return;
+    }
+
     handleAddTask(
       e,
       newTask,
@@ -182,6 +197,16 @@ const Page = () => {
   };
 
   const wrappedHandleDeleteEvent = (eventId) => {
+    if (!isVerified) {
+      setNotification({
+        show: true,
+        message:
+          "계정이 아직 검증되지 않았습니다. 관리자가 검증할 때까지 일정을 삭제할 수 없습니다.",
+        type: "warning",
+      });
+      return;
+    }
+
     handleDeleteEvent(
       eventId,
       setEvents,
@@ -194,6 +219,17 @@ const Page = () => {
   };
 
   const wrappedHandleEditSubmit = (e) => {
+    e.preventDefault();
+    if (!isVerified) {
+      setNotification({
+        show: true,
+        message:
+          "계정이 아직 검증되지 않았습니다. 관리자가 검증할 때까지 일정을 수정할 수 없습니다.",
+        type: "warning",
+      });
+      return;
+    }
+
     handleEditSubmit(
       e,
       editTask,
@@ -365,8 +401,11 @@ const Page = () => {
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h1 className="mb-0">느헤미아반 달력</h1>
         {isTeacherUser ? (
-          <div>
-            <span className="me-2">교사 로그인됨</span>
+          <div className="d-flex align-items-center">
+            <span className="me-2">
+              교사 로그인됨{" "}
+              {!isVerified && <span className="badge bg-warning">미검증</span>}
+            </span>
             <button
               className="btn btn-outline-secondary"
               onClick={wrappedHandleLogout}
@@ -455,15 +494,25 @@ const Page = () => {
         )}
       </div>
 
-      {/* Teacher-only controls */}
+      {/* Teacher-only controls - update to disable the button when not verified */}
       {isTeacherUser && (
         <div className="d-flex justify-content-end mt-3">
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowModal(true)}
-          >
-            새 일정 추가
-          </button>
+          {isVerified ? (
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowModal(true)}
+            >
+              새 일정 추가
+            </button>
+          ) : (
+            <button
+              className="btn btn-outline-secondary"
+              disabled
+              title="계정 검증 후 사용 가능"
+            >
+              새 일정 추가 (검증 필요)
+            </button>
+          )}
         </div>
       )}
 
@@ -753,7 +802,7 @@ const Page = () => {
                   )}
                 </div>
                 <div className="modal-footer">
-                  {isTeacherUser && (
+                  {isTeacherUser && isVerified && (
                     <>
                       <button
                         className="btn btn-danger me-auto"
@@ -770,6 +819,11 @@ const Page = () => {
                         수정
                       </button>
                     </>
+                  )}
+                  {isTeacherUser && !isVerified && (
+                    <div className="text-warning me-auto">
+                      <small>계정 검증 후에 일정 관리가 가능합니다.</small>
+                    </div>
                   )}
                   <button
                     type="button"
@@ -964,7 +1018,7 @@ const Page = () => {
                   )}
                 </div>
                 <div className="modal-footer">
-                  {isTeacherUser && (
+                  {isTeacherUser && isVerified ? (
                     <button
                       className="btn btn-primary me-auto"
                       onClick={() => {
@@ -978,7 +1032,11 @@ const Page = () => {
                     >
                       이날 일정 추가
                     </button>
-                  )}
+                  ) : isTeacherUser && !isVerified ? (
+                    <div className="text-warning me-auto">
+                      <small>계정 검증 후에 일정 추가가 가능합니다.</small>
+                    </div>
+                  ) : null}
                   <button
                     type="button"
                     className="btn btn-secondary"

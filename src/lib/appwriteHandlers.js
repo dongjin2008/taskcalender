@@ -2,22 +2,21 @@ import { ID } from "appwrite";
 import { account, databases, AppwriteConfig } from "./appwrite";
 
 // Check authentication status
-export const checkAuthStatus = async (setIsTeacherUser) => {
+export const checkAuthStatus = async (setIsTeacherUser, setIsVerified) => {
   try {
-    // Use Appwrite SDK directly
     const user = await account.get();
+
+    // User is logged in
     setIsTeacherUser(true);
-    console.log("User is authenticated:", user);
+
+    // Check if the user is verified
+    setIsVerified(user.emailVerification);
+
     return true;
   } catch (error) {
-    // Expected error if not logged in
+    // User is not logged in
     setIsTeacherUser(false);
-    // Only log as an error if it's not a 401
-    if (error.code !== 401) {
-      console.error("Authentication check failed:", error);
-    } else {
-      console.log("User is not authenticated");
-    }
+    setIsVerified(false);
     return false;
   }
 };
@@ -60,7 +59,6 @@ export const handleLogin = async (
   setError,
   setIsTeacherUser,
   setShowAuthModal,
-  setAuthForm,
   setNotification
 ) => {
   e.preventDefault();
@@ -70,45 +68,32 @@ export const handleLogin = async (
     console.log("Attempting to login with:", authForm.email);
 
     // This is correct - keep using createEmailPasswordSession
-    const session = await account.createEmailPasswordSession(
-      authForm.email,
-      authForm.password
-    );
+    await account.createEmailPasswordSession(authForm.email, authForm.password);
 
-    console.log("Login successful:", session);
+    // Get the user - this includes verification status
+    const user = await account.get();
+    const isVerified = user.emailVerification; // Check if email is verified
 
-    // Set user as authenticated
     setIsTeacherUser(true);
     setShowAuthModal(false);
 
-    // Reset form
-    setAuthForm({
-      email: "",
-      password: "",
-      name: "",
-    });
-
-    // Show success notification
-    setNotification({
-      show: true,
-      message: "로그인 성공!",
-      type: "success",
-    });
-
-    return true;
+    if (!isVerified) {
+      setNotification({
+        show: true,
+        message:
+          "로그인되었지만 계정이 아직 검증되지 않았습니다. 관리자가 검증할 때까지 일정을 추가/수정/삭제할 수 없습니다.",
+        type: "warning",
+      });
+    } else {
+      setNotification({
+        show: true,
+        message: "성공적으로 로그인되었습니다.",
+        type: "success",
+      });
+    }
   } catch (error) {
     console.error("Login error:", error);
-    setError(
-      error.message || "로그인 실패: 이메일이나 비밀번호가 올바르지 않습니다"
-    );
-
-    // Clear password on failed login
-    setAuthForm({
-      ...authForm,
-      password: "",
-    });
-
-    return false;
+    setError("로그인 중 오류가 발생했습니다: " + error.message);
   }
 };
 
@@ -120,8 +105,7 @@ export const handleRegister = async (
   setIsTeacherUser,
   setShowAuthModal,
   setAuthForm,
-  setNotification,
-  setAuthMode
+  setNotification
 ) => {
   e.preventDefault();
   setError(null); // Clear any existing errors
@@ -139,54 +123,35 @@ export const handleRegister = async (
 
     console.log("Registration successful:", user);
 
-    // This is correct - keep using createEmailPasswordSession
+    // Show notification about verification
+    setNotification({
+      show: true,
+      message:
+        "등록되었습니다. 계정 검증이 필요합니다. 관리자가 검증할 때까지 일정을 추가/수정/삭제할 수 없습니다.",
+      type: "info",
+    });
+
+    // Close modal and reset form
+    setShowAuthModal(false);
+    setAuthForm({
+      email: "",
+      password: "",
+      name: "",
+    });
+
+    // Optional: Auto login after registration
     try {
       await account.createEmailPasswordSession(
         authForm.email,
         authForm.password
       );
-
-      // Set user as authenticated
       setIsTeacherUser(true);
-      setShowAuthModal(false);
-
-      // Reset form
-      setAuthForm({
-        email: "",
-        password: "",
-        name: "",
-      });
-
-      // Show success notification
-      setNotification({
-        show: true,
-        message: "계정이 생성되었습니다!",
-        type: "success",
-      });
-
-      return true;
     } catch (loginError) {
-      console.error("Auto-login error:", loginError);
-      setError("계정은 생성되었지만 로그인하지 못했습니다. 로그인해주세요.");
-      setAuthMode("login");
-      return false;
+      console.error("Auto login failed:", loginError);
     }
   } catch (error) {
     console.error("Registration error:", error);
-
-    if (error.code === 409) {
-      setError("이미 사용 중인 이메일입니다.");
-    } else {
-      setError(error.message || "계정 생성에 실패했습니다.");
-    }
-
-    // Clear password on failed registration
-    setAuthForm({
-      ...authForm,
-      password: "",
-    });
-
-    return false;
+    setError("등록 중 오류가 발생했습니다: " + error.message);
   }
 };
 
