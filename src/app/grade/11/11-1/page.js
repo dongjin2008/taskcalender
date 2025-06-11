@@ -332,7 +332,7 @@ const Page = () => {
   // If not mounted yet, render a minimal placeholder
   if (!isMounted) {
     return (
-      <div className="container mt-5 position-relative">
+      <div className="container px-0 mx-0 mt-5 position-relative">
         <style>{calendarStyles}</style>
         <div className="d-flex justify-content-between align-items-center mb-4">
           <h1 className="mb-0">느헤미아반 달력</h1>
