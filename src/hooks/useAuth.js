@@ -59,7 +59,7 @@ export function useAuth(setNotification) {
       
       // Then create a new session
       try {
-        await account.createEmailSession(
+        await account.createEmailPasswordSession(
           authForm.email,
           authForm.password
         );
