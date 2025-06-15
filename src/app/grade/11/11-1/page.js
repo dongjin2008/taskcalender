@@ -1,1156 +1,274 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import ReactDOM from "react-dom";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import bootstrap5Plugin from "@fullcalendar/bootstrap5";
-import koLocale from "@fullcalendar/core/locales/ko";
-import { account } from "@/lib/appwrite";
-import {
-  checkAuthStatus,
-  fetchEvents,
-  handleLogin,
-  handleRegister,
-  handleLogout,
-  handleAddTask,
-  handleDeleteEvent,
-  handleEditSubmit,
-} from "@/lib/appwriteHandlers";
+import { CalendarContainer } from "@/components/CalendarContainer";
+import { ClassSelector } from "@/components/ClassSelector";
+import { Header } from "@/components/Header";
+import { Notifications } from "@/components/Notifications";
+import { TaskModals } from "@/components/TaskModals";
+import { AuthModal } from "@/components/AuthModal";
+import { useTaskCalendar } from "@/hooks/useTaskCalendar";
+import { useAuth } from "@/hooks/useAuth";
+import { useModals } from "@/hooks/useModals";
+import { calendarStyles } from "@/styles/calendarStyles";
 
 const Page = () => {
-  // Add this state to track client-side mounting
-  const [isMounted, setIsMounted] = useState(false);
+  const {
+    viewedClass,
+    events,
+    setEvents,
+    loading,
+    classOptions,
+    handleClassChange,
+    handleEventClick,
+    handleDateClick,
+    fetchEventData,
+  } = useTaskCalendar();
 
-  // Existing state variables
-  const [events, setEvents] = useState([]);
-  const [isTeacherUser, setIsTeacherUser] = useState(false);
-  // Add verification state
-  const [isVerified, setIsVerified] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Define notification state first
   const [notification, setNotification] = useState({
     show: false,
     message: "",
     type: "info",
   });
+  const [error, setError] = useState(null);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // Add a state to track the current view month
-  const [currentViewMonth, setCurrentViewMonth] = useState(null);
+  const {
+    isTeacherUser,
+    isVerified,
+    isAuthLoading,
+    showAuthModal,
+    authMode,
+    authForm,
+    handleLogin,
+    handleRegister,
+    handleLogout,
+    handleClientSideLogout, // Add this
+    setShowAuthModal,
+    setAuthMode,
+    setAuthForm,
+  } = useAuth(setNotification); // Pass setNotification here
 
-  // Add a state to track login state changes - MOVE THIS HERE
-  const [authRefreshTrigger, setAuthRefreshTrigger] = useState(0);
+  // Now you can use setNotification and setError as arguments
+  const {
+    showModal,
+    showEditModal,
+    showViewModal,
+    showDateModal,
+    selectedEvent,
+    selectedDate,
+    newTask,
+    editTask,
+    tasksForDate,
+    setShowModal,
+    setShowEditModal,
+    setShowViewModal,
+    setShowDateModal,
+    setSelectedEvent,
+    setSelectedDate,
+    setTasksForDate,
+    setNewTask,
+    setEditTask,
+    handleBackdropClick,
+    handleViewTask,
+    handleEditClick,
+    handleAddTask,
+    handleDeleteEvent,
+    handleEditSubmit,
+    handleViewTaskFromCalendar,
+    handleDateClickFromCalendar,
+    handleAddTaskForDate, // Add this
+  } = useModals(
+    events,
+    setEvents,
+    viewedClass,
+    isVerified,
+    setNotification,
+    setError
+  );
 
-  // More state variables for UI
-  const [showModal, setShowModal] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [showDateModal, setShowDateModal] = useState(false);
-  const [authMode, setAuthMode] = useState("login");
-
-  // Form state variables
-  const [newTask, setNewTask] = useState({
-    title: "",
-    date: "", // Remove initial date value to prevent hydration mismatch
-    description: "",
-    subject: "",
-  });
-
-  const [editTask, setEditTask] = useState({
-    id: "",
-    title: "",
-    date: "",
-    description: "",
-    subject: "",
-  });
-
-  const [authForm, setAuthForm] = useState({
-    email: "",
-    password: "",
-    name: "",
-  });
-
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(null);
-
-  // Debug state
-  const [debugInfo, setDebugInfo] = useState({});
-  const [showDebug, setShowDebug] = useState(false);
-  const [appwriteStatus, setAppwriteStatus] = useState("Unknown");
-
-  // Add loading state
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
-
-  // This effect sets isMounted to true after component mounts on client
+  // Set isMounted after component mounts
   useEffect(() => {
     setIsMounted(true);
-
-    // Set initial date here to avoid hydration mismatch
-    setNewTask((prev) => ({
-      ...prev,
-      date: new Date().toISOString().split("T")[0],
-    }));
   }, []);
 
-  // Update this effect to check verification status
-  useEffect(() => {
-    if (isMounted) {
-      const checkAuth = async () => {
-        await checkAuthStatus(setIsTeacherUser, setIsVerified);
-
-        // Set current month for initial load
-        const now = new Date();
-        const currentMonth = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          1
-        ).toISOString();
-        setCurrentViewMonth(currentMonth);
-
-        // Fetch events with the current month
-        fetchEvents(setLoading, setEvents, setError, currentMonth);
-      };
-
-      checkAuth();
-    }
-  }, [isMounted, authRefreshTrigger]); // Now this works because authRefreshTrigger is defined above
-
-  // Events for date clicking, etc.
-  const handleDateClick = (arg) => {
-    setSelectedDate(arg.dateStr);
-    setShowDateModal(true);
-  };
-
-  const handleEventClick = (info) => {
-    setSelectedEvent({
-      id: info.event.id,
-      title: info.event.title,
-      start: info.event.start,
-      description: info.event.extendedProps.description || "",
-      subject: info.event.extendedProps.subject || "",
-    });
-    setShowViewModal(true);
-  };
-
-  const handleViewTask = (task) => {
-    setSelectedEvent(task);
-    setShowDateModal(false);
-    setShowViewModal(true);
-  };
-
-  const handleEditClick = () => {
-    setEditTask({
-      id: selectedEvent.id,
-      title: selectedEvent.title,
-      date: new Date(selectedEvent.start).toISOString().split("T")[0],
-      description: selectedEvent.description || "",
-      subject: selectedEvent.subject || "",
-    });
-    setShowViewModal(false);
-    setShowEditModal(true);
-  };
-
-  const handleBackdropClick = (e) => {
-    if (e.target.classList.contains("modal-overlay")) {
-      // Close all modals
-      setShowModal(false);
-      setShowAuthModal(false);
-      setShowEditModal(false);
-      setShowViewModal(false);
-      setShowDateModal(false);
-    }
-  };
-
-  // Wrapper functions that check verification status
-  const wrappedHandleLogin = (e) => {
-    setIsAuthLoading(true);
-    handleLogin(
-      e,
-      authForm,
-      setError,
-      setIsTeacherUser,
-      setIsVerified,
-      setShowAuthModal,
-      setNotification
-    ).finally(() => {
-      setIsAuthLoading(false);
-      setAuthRefreshTrigger((prev) => prev + 1);
-    });
-  };
-
-  const wrappedHandleRegister = (e) => {
-    handleRegister(
-      e,
-      authForm,
-      setError,
-      setIsTeacherUser,
-      setShowAuthModal,
-      setAuthForm,
-      setNotification
-    );
-  };
-
-  const wrappedHandleLogout = () => {
-    handleLogout(setIsTeacherUser, setNotification);
-  };
-
-  const wrappedHandleAddTask = (e) => {
-    e.preventDefault();
-    if (!isVerified) {
-      setNotification({
-        show: true,
-        message:
-          "계정이 아직 검증되지 않았습니다. 관리자가 검증할 때까지 일정을 추가할 수 없습니다.",
-        type: "warning",
-      });
-      return;
-    }
-
-    handleAddTask(
-      e,
-      newTask,
-      setEvents,
-      events,
-      setNewTask,
-      setShowModal,
-      setNotification,
-      setError
-    );
-  };
-
-  const wrappedHandleDeleteEvent = (eventId) => {
-    if (!isVerified) {
-      setNotification({
-        show: true,
-        message:
-          "계정이 아직 검증되지 않았습니다. 관리자가 검증할 때까지 일정을 삭제할 수 없습니다.",
-        type: "warning",
-      });
-      return;
-    }
-
-    handleDeleteEvent(
-      eventId,
-      setEvents,
-      events,
-      setShowViewModal,
-      setShowDateModal,
-      setNotification,
-      setError
-    );
-  };
-
-  const wrappedHandleEditSubmit = (e) => {
-    e.preventDefault();
-    if (!isVerified) {
-      setNotification({
-        show: true,
-        message:
-          "계정이 아직 검증되지 않았습니다. 관리자가 검증할 때까지 일정을 수정할 수 없습니다.",
-        type: "warning",
-      });
-      return;
-    }
-
-    handleEditSubmit(
-      e,
-      editTask,
-      setEvents,
-      events,
-      setShowEditModal,
-      setSelectedEvent,
-      setNotification,
-      setError
-    );
-  };
-
-  // Get tasks for the selected date
-  const tasksForDate = selectedDate
-    ? events.filter(
-        (event) =>
-          new Date(event.start).toISOString().split("T")[0] === selectedDate
-      )
-    : [];
-
-  // Debug info checker
-  const checkDebugInfo = async () => {
-    try {
-      // Try to get the user account
-      let user = null;
-      let authStatus = "Not authenticated";
-
-      try {
-        user = await account.get();
-        authStatus = "Authenticated";
-      } catch (authError) {
-        // Expected error if not logged in
-        console.log("Not logged in:", authError.message);
-      }
-
-      // Set debug info regardless of authentication status
-      setDebugInfo({
-        isTeacherUser,
-        authMode,
-        authStatus,
-        hasUser: !!user,
-        userId: user ? user.$id : null,
-        email: user ? user.email : null,
-        eventCount: events.length,
-        appwriteConfigured: true,
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV,
-      });
-    } catch (error) {
-      // Handle any other unexpected errors
-      console.error("Debug info error:", error);
-      setDebugInfo({
-        error: error.message,
-        isTeacherUser,
-        errorTimestamp: new Date().toISOString(),
-      });
-    }
-  };
-
-  // You can also update your checkAuthStatus wrapper to handle errors better
-  const checkAuthStatusDebug = () => {
-    checkAuthStatus(setIsTeacherUser);
-
-    // Add a notification about the check
-    setNotification({
-      show: true,
-      message: isTeacherUser
-        ? "인증 상태: 로그인됨"
-        : "인증 상태: 로그인되지 않음",
-      type: isTeacherUser ? "success" : "info",
-    });
-  };
-
-  // Test Appwrite connection
-  const testAppwriteConnection = async () => {
-    try {
-      // Try a lighter weight API call that doesn't require authentication
-      const health = await fetch("https://cloud.appwrite.io/v1/health");
-      const data = await health.json();
-
-      setAppwriteStatus("Connected");
-      setDebugInfo((prev) => ({
-        ...prev,
-        appwriteHealth: data,
-        connectionStatus: "Connected",
-        endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT,
-        projectIdConfigured: !!process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID,
-      }));
-
-      setNotification({
-        show: true,
-        message: "Appwrite 서비스에 성공적으로 연결되었습니다.",
-        type: "success",
-      });
-    } catch (error) {
-      console.error("Appwrite connection test failed:", error);
-      setAppwriteStatus("Failed");
-      setDebugInfo((prev) => ({
-        ...prev,
-        connectionError: error.message,
-        connectionStatus: "Failed",
-        testTime: new Date().toISOString(),
-      }));
-
-      setNotification({
-        show: true,
-        message: "Appwrite 서비스 연결 테스트 실패: " + error.message,
-        type: "danger",
-      });
-    }
-  };
-
-  // For date-related rendering, handle null cases
-  const formatDate = (dateString) => {
-    if (!dateString) return "";
-    try {
-      return new Date(dateString).toLocaleDateString("ko-KR");
-    } catch (e) {
-      return "";
-    }
-  };
-
-  // Calendar styles
-  const calendarStyles = `
-    .fc-event {
-      cursor: pointer;
-    }
-    .fc-day-today {
-      background-color: rgba(255, 220, 40, 0.15) !important;
-    }
-    .fc-daygrid-day:hover {
-      background-color: rgba(0, 0, 0, 0.02);
-    }
-    
-    /* Make the toolbar layout more balanced */
-    .fc-header-toolbar {
-      display: flex !important;
-      justify-content: space-between !important;
-      align-items: center !important;
-    }
-    
-    /* Give equal space to each section */
-    .fc-toolbar-chunk {
-      flex: 1 !important;
-      display: flex !important;
-    }
-    
-    /* Align the buttons to their respective sides */
-    .fc-toolbar-chunk:first-child {
-      justify-content: flex-start !important;
-    }
-    
-    .fc-toolbar-chunk:nth-child(2) {
-      justify-content: center !important;
-    }
-    
-    .fc-toolbar-chunk:last-child {
-      justify-content: flex-end !important;
-    }
-    
-    /* Make the title text centered */
-    .fc .fc-toolbar-title {
-      width: 100% !important;
-      text-align: center !important; 
-      font-weight: 500 !important;
-    }
-    
-    /* Loading indicator for month navigation */
-    .calendar-loading {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.8);
-      padding: 5px 10px;
-      border-radius: 4px;
-      font-size: 12px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      z-index: 5;
-    }
-  `;
-
-  // If not mounted yet, render a minimal placeholder
+  // If not mounted yet, render placeholder
   if (!isMounted) {
-    return (
-      <div className="container-fluid px-0 mx-0 position-relative">
-        <style>{calendarStyles}</style>
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <h1 className="mb-0">느헤미아반 달력</h1>
-          <button className="btn btn-primary" disabled>
-            교사 로그인
-          </button>
-        </div>
-        <div
-          className="loading-placeholder"
-          style={{
-            height: "600px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingPlaceholder viewedClass={viewedClass} />;
   }
 
-  // Regular render with client-side data
+  // Use the new handler functions from useModals that already have access to the necessary setState functions
+  const onEventClick = (info) => {
+    const eventData = handleEventClick(info);
+    handleViewTaskFromCalendar(eventData);
+  };
+
+  const onDateClick = (arg) => {
+    const dateStr = handleDateClick(arg);
+    handleDateClickFromCalendar(dateStr, events);
+  };
+
   return (
     <div className="container-fluid mx-0 px-0 position-relative">
       <style>{calendarStyles}</style>
 
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1 className="mb-0">느헤미아반 달력</h1>
-        {isTeacherUser ? (
-          <div className="d-flex align-items-center">
-            <span className="me-2">
-              교사 로그인됨{" "}
-              {!isVerified && <span className="badge bg-warning">미검증</span>}
-            </span>
-            <button
-              className="btn btn-outline-secondary"
-              onClick={wrappedHandleLogout}
-            >
-              로그아웃
-            </button>
-          </div>
-        ) : (
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowAuthModal(true)}
-          >
-            교사 로그인
-          </button>
-        )}
-      </div>
-
-      {error && (
-        <div
-          className="alert alert-danger alert-dismissible fade show"
-          role="alert"
-        >
-          {error}
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setError(null)}
-            aria-label="Close"
-          ></button>
-        </div>
-      )}
-
-      {notification.show && (
-        <div
-          className={`alert alert-${notification.type} alert-dismissible fade show`}
-          role="alert"
-        >
-          {notification.message}
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() =>
-              setNotification({ show: false, message: "", type: "info" })
-            }
-            aria-label="Close"
-          ></button>
-        </div>
-      )}
-
-      {/* Calendar component */}
-      <div className="calendar-container position-relative">
-        {loading && (
-          <div className="calendar-loading">
-            <div className="spinner-border spinner-border-sm text-primary me-2">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-            일정 불러오는 중...
-          </div>
-        )}
-        <FullCalendar
-          plugins={[
-            dayGridPlugin,
-            timeGridPlugin,
-            interactionPlugin,
-            bootstrap5Plugin,
-          ]}
-          initialView="dayGridMonth"
-          headerToolbar={{
-            left: "prev",
-            center: "title",
-            right: "next",
-          }}
-          locale={koLocale}
-          themeSystem="bootstrap5"
-          height={600}
-          events={events}
-          eventClick={handleEventClick}
-          dateClick={handleDateClick}
-          datesSet={(dateInfo) => {
-            // When month view changes
-            const viewStart = dateInfo.start;
-            const monthStart = new Date(
-              viewStart.getFullYear(),
-              viewStart.getMonth(),
-              1
-            );
-            const monthString = monthStart.toISOString();
-
-            if (monthString !== currentViewMonth) {
-              setCurrentViewMonth(monthString);
-              fetchEvents(setLoading, setEvents, setError, monthString);
-            }
-          }}
+      <Header
+        viewedClass={viewedClass}
+        isTeacherUser={isTeacherUser}
+        isVerified={isVerified}
+        onLogin={() => setShowAuthModal(true)}
+        onLogout={handleLogout}
+        onClientLogout={handleClientSideLogout}
+      >
+        <ClassSelector
+          viewedClass={viewedClass}
+          classOptions={classOptions}
+          onChange={handleClassChange}
         />
-      </div>
+      </Header>
 
-      {/* Teacher-only controls - update to disable the button when not verified */}
+      <Notifications
+        error={error}
+        notification={notification}
+        setError={setError}
+        setNotification={setNotification}
+      />
+
+      <CalendarContainer
+        loading={loading}
+        events={events}
+        viewedClass={viewedClass}
+        onEventClick={onEventClick}
+        onDateClick={onDateClick}
+        fetchEvents={fetchEventData}
+      />
+
       {isTeacherUser && (
-        <div className="d-flex justify-content-end mt-3">
-          {isVerified ? (
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowModal(true)}
-            >
-              새 일정 추가
-            </button>
-          ) : (
-            <button
-              className="btn btn-outline-secondary"
-              disabled
-              title="계정 검증 후 사용 가능"
-            >
-              새 일정 추가 (검증 필요)
-            </button>
-          )}
-        </div>
+        <AddTaskButton
+          isVerified={isVerified}
+          onClick={() => setShowModal(true)}
+        />
       )}
 
-      {/* All modals are rendered conditionally on the client side */}
-      {/* Auth modal */}
-      {isMounted &&
-        showAuthModal &&
-        ReactDOM.createPortal(
-          <div className="modal-overlay" onClick={handleBackdropClick}>
-            <div
-              className="modal-backdrop fade show"
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                zIndex: 1040,
-              }}
-            ></div>
-            <div
-              className="modal fade show d-block"
-              tabIndex="-1"
-              style={{ zIndex: 1050 }}
-            >
-              <div className="modal-dialog modal-dialog-centered">
-                <div className="modal-content">
-                  <div className="modal-header">
-                    <h5 className="modal-title">
-                      {authMode === "login" ? "교사 로그인" : "교사 등록"}
-                    </h5>
-                    <button
-                      type="button"
-                      className="btn-close"
-                      onClick={() => setShowAuthModal(false)}
-                      aria-label="Close"
-                    ></button>
-                  </div>
-                  <div className="modal-body">
-                    <form
-                      onSubmit={
-                        authMode === "login"
-                          ? wrappedHandleLogin
-                          : wrappedHandleRegister
-                      }
-                    >
-                      {authMode === "register" && (
-                        <div className="mb-3">
-                          <label htmlFor="teacherName" className="form-label">
-                            이름
-                          </label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            id="teacherName"
-                            value={authForm.name}
-                            onChange={(e) =>
-                              setAuthForm({ ...authForm, name: e.target.value })
-                            }
-                            required
-                          />
-                        </div>
-                      )}
+      <TaskModals
+        showModal={showModal}
+        showEditModal={showEditModal}
+        showViewModal={showViewModal}
+        showDateModal={showDateModal}
+        selectedEvent={selectedEvent}
+        selectedDate={selectedDate}
+        newTask={newTask}
+        editTask={editTask}
+        tasksForDate={tasksForDate}
+        classOptions={classOptions}
+        isTeacherUser={isTeacherUser}
+        isVerified={isVerified}
+        onBackdropClick={handleBackdropClick}
+        onCloseModal={() => setShowModal(false)}
+        onCloseEditModal={() => setShowEditModal(false)}
+        onCloseViewModal={() => setShowViewModal(false)}
+        onCloseDateModal={() => setShowDateModal(false)}
+        onViewTask={handleViewTask}
+        onEditClick={handleEditClick}
+        onAddTask={handleAddTask} // This should be the handler for form submission
+        onDeleteEvent={handleDeleteEvent}
+        onEditSubmit={handleEditSubmit}
+        onNewTaskChange={setNewTask}
+        onEditTaskChange={setEditTask}
+        onAddTaskForDate={handleAddTaskForDate} // Add this
+      />
 
-                      <div className="mb-3">
-                        <label htmlFor="teacherEmail" className="form-label">
-                          이메일
-                        </label>
-                        <input
-                          type="email"
-                          className="form-control"
-                          id="teacherEmail"
-                          value={authForm.email}
-                          onChange={(e) =>
-                            setAuthForm({ ...authForm, email: e.target.value })
-                          }
-                          required
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label htmlFor="teacherPassword" className="form-label">
-                          비밀번호
-                        </label>
-                        <input
-                          type="password"
-                          className="form-control"
-                          id="teacherPassword"
-                          value={authForm.password}
-                          onChange={(e) =>
-                            setAuthForm({
-                              ...authForm,
-                              password: e.target.value,
-                            })
-                          }
-                          required
-                        />
-                      </div>
-                      <div className="modal-footer">
-                        <button
-                          type="button"
-                          className="btn btn-link"
-                          onClick={() =>
-                            setAuthMode(
-                              authMode === "login" ? "register" : "login"
-                            )
-                          }
-                        >
-                          {authMode === "login"
-                            ? "계정이 없습니까? 등록하세요."
-                            : "계정이 이미 있습니까? 로그인하세요."}
-                        </button>
-                        <button
-                          type="submit"
-                          className="btn btn-primary"
-                          disabled={isAuthLoading}
-                        >
-                          {isAuthLoading ? (
-                            <>
-                              <span
-                                className="spinner-border spinner-border-sm me-2"
-                                role="status"
-                                aria-hidden="true"
-                              ></span>
-                              {authMode === "login"
-                                ? "로그인 중..."
-                                : "등록 중..."}
-                            </>
-                          ) : authMode === "login" ? (
-                            "로그인"
-                          ) : (
-                            "등록"
-                          )}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
-
-      {/* All the other modals */}
-      {/* ...add task modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={handleBackdropClick}>
-          <div
-            className="modal-backdrop fade show"
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              zIndex: 1040,
-            }}
-          ></div>
-          <div
-            className="modal fade show d-block"
-            tabIndex="-1"
-            style={{ zIndex: 1050 }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">새 일정 추가</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowModal(false)}
-                    aria-label="Close"
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <form onSubmit={wrappedHandleAddTask}>
-                    {/* Form content */}
-                    <div className="mb-3">
-                      <label htmlFor="taskTitle" className="form-label">
-                        제목
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="taskTitle"
-                        value={newTask.title}
-                        onChange={(e) =>
-                          setNewTask({ ...newTask, title: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label htmlFor="taskSubject" className="form-label">
-                        과목
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="taskSubject"
-                        value={newTask.subject || ""}
-                        onChange={(e) =>
-                          setNewTask({ ...newTask, subject: e.target.value })
-                        }
-                        placeholder="과목을 입력하세요 (예: 수학, 과학)"
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label htmlFor="taskDate" className="form-label">
-                        날짜
-                      </label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        id="taskDate"
-                        value={newTask.date}
-                        onChange={(e) =>
-                          setNewTask({ ...newTask, date: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label htmlFor="taskDescription" className="form-label">
-                        설명 (선택)
-                      </label>
-                      <textarea
-                        className="form-control"
-                        id="taskDescription"
-                        rows="3"
-                        value={newTask.description}
-                        onChange={(e) =>
-                          setNewTask({
-                            ...newTask,
-                            description: e.target.value,
-                          })
-                        }
-                      ></textarea>
-                    </div>
-                    <div className="modal-footer">
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => setShowModal(false)}
-                      >
-                        닫기
-                      </button>
-                      <button type="submit" className="btn btn-primary">
-                        추가
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Other modals - edit, view, date modals etc. */}
-      {/* View event modal */}
-      {showViewModal && selectedEvent && (
-        <div className="modal-overlay" onClick={handleBackdropClick}>
-          <div
-            className="modal-backdrop fade show"
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              zIndex: 1040,
-            }}
-          ></div>
-          <div
-            className="modal fade show d-block"
-            tabIndex="-1"
-            style={{ zIndex: 1050 }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">{selectedEvent.title}</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowViewModal(false)}
-                    aria-label="Close"
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <p>
-                    <strong>날짜:</strong>{" "}
-                    {new Date(selectedEvent.start).toLocaleDateString("ko-KR")}
-                  </p>
-                  {selectedEvent.subject && (
-                    <p>
-                      <strong>과목:</strong> {selectedEvent.subject}
-                    </p>
-                  )}
-                  {selectedEvent.description && (
-                    <div>
-                      <strong>설명:</strong>
-                      <p>{selectedEvent.description}</p>
-                    </div>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  {isTeacherUser && isVerified && (
-                    <>
-                      <button
-                        className="btn btn-danger me-auto"
-                        onClick={() =>
-                          wrappedHandleDeleteEvent(selectedEvent.id)
-                        }
-                      >
-                        삭제
-                      </button>
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleEditClick}
-                      >
-                        수정
-                      </button>
-                    </>
-                  )}
-                  {isTeacherUser && !isVerified && (
-                    <div className="text-warning me-auto">
-                      <small>계정 검증 후에 일정 관리가 가능합니다.</small>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowViewModal(false)}
-                  >
-                    닫기
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit event modal */}
-      {showEditModal && (
-        <div className="modal-overlay" onClick={handleBackdropClick}>
-          <div
-            className="modal-backdrop fade show"
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              zIndex: 1040,
-            }}
-          ></div>
-          <div
-            className="modal fade show d-block"
-            tabIndex="-1"
-            style={{ zIndex: 1050 }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">일정 수정</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowEditModal(false)}
-                    aria-label="Close"
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <form onSubmit={wrappedHandleEditSubmit}>
-                    <div className="mb-3">
-                      <label htmlFor="editTaskTitle" className="form-label">
-                        제목
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="editTaskTitle"
-                        value={editTask.title}
-                        onChange={(e) =>
-                          setEditTask({ ...editTask, title: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label htmlFor="editTaskSubject" className="form-label">
-                        과목
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="editTaskSubject"
-                        value={editTask.subject || ""}
-                        onChange={(e) =>
-                          setEditTask({ ...editTask, subject: e.target.value })
-                        }
-                        placeholder="과목을 입력하세요 (예: 수학, 과학)"
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label htmlFor="editTaskDate" className="form-label">
-                        날짜
-                      </label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        id="editTaskDate"
-                        value={editTask.date}
-                        onChange={(e) =>
-                          setEditTask({ ...editTask, date: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label
-                        htmlFor="editTaskDescription"
-                        className="form-label"
-                      >
-                        설명 (선택)
-                      </label>
-                      <textarea
-                        className="form-control"
-                        id="editTaskDescription"
-                        rows="3"
-                        value={editTask.description}
-                        onChange={(e) =>
-                          setEditTask({
-                            ...editTask,
-                            description: e.target.value,
-                          })
-                        }
-                      ></textarea>
-                    </div>
-                    <div className="modal-footer">
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => setShowEditModal(false)}
-                      >
-                        취소
-                      </button>
-                      <button type="submit" className="btn btn-primary">
-                        저장
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Date events modal */}
-      {showDateModal && selectedDate && (
-        <div className="modal-overlay" onClick={handleBackdropClick}>
-          <div
-            className="modal-backdrop fade show"
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              zIndex: 1040,
-            }}
-          ></div>
-          <div
-            className="modal fade show d-block"
-            tabIndex="-1"
-            style={{ zIndex: 1050 }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    {new Date(selectedDate).toLocaleDateString("ko-KR")} 일정
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowDateModal(false)}
-                    aria-label="Close"
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  {tasksForDate.length > 0 ? (
-                    <div>
-                      <h6>이날의 일정:</h6>
-                      <ul className="list-group">
-                        {tasksForDate.map((task) => (
-                          <li
-                            key={task.id}
-                            className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                            onClick={() => handleViewTask(task)}
-                            style={{ cursor: "pointer" }}
-                          >
-                            <div>
-                              <strong>{task.title}</strong>
-                              {task.subject && (
-                                <span className="badge bg-info ms-2">
-                                  {task.subject}
-                                </span>
-                              )}
-                            </div>
-                            <i className="bi bi-chevron-right"></i>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <p className="text-center">이날의 일정이 없습니다.</p>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  {isTeacherUser && isVerified ? (
-                    <button
-                      className="btn btn-primary me-auto"
-                      onClick={() => {
-                        setNewTask({
-                          ...newTask,
-                          date: selectedDate,
-                        });
-                        setShowDateModal(false);
-                        setShowModal(true);
-                      }}
-                    >
-                      이날 일정 추가
-                    </button>
-                  ) : isTeacherUser && !isVerified ? (
-                    <div className="text-warning me-auto">
-                      <small>계정 검증 후에 일정 추가가 가능합니다.</small>
-                    </div>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowDateModal(false)}
-                  >
-                    닫기
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {isMounted && showAuthModal && (
+        <AuthModal
+          authMode={authMode}
+          authForm={authForm}
+          isAuthLoading={isAuthLoading} // Now this is defined
+          onBackdropClick={handleBackdropClick}
+          onClose={() => setShowAuthModal(false)}
+          onModeChange={() =>
+            setAuthMode(authMode === "login" ? "register" : "login")
+          }
+          onFormChange={setAuthForm}
+          onLogin={handleLogin}
+          onRegister={handleRegister}
+        />
       )}
     </div>
   );
 };
 
+const LoadingPlaceholder = ({ viewedClass }) => (
+  <div className="container-fluid px-0 mx-0 position-relative">
+    <style>{calendarStyles}</style>
+    <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex align-items-center">
+        <h1 className="mb-0 me-3">{viewedClass} 달력</h1>
+        <button className="btn btn-outline-secondary dropdown-toggle" disabled>
+          반 선택
+        </button>
+      </div>
+      <button className="btn btn-primary" disabled>
+        교사 로그인
+      </button>
+    </div>
+    <div
+      className="loading-placeholder"
+      style={{
+        height: "600px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">Loading...</span>
+      </div>
+    </div>
+  </div>
+);
+
+const AddTaskButton = ({ isVerified, onClick }) => (
+  <div className="d-flex justify-content-end mt-3">
+    {isVerified ? (
+      <button className="btn btn-primary" onClick={onClick}>
+        새 일정 추가
+      </button>
+    ) : (
+      <button
+        className="btn btn-outline-secondary"
+        disabled
+        title="계정 검증 후 사용 가능"
+      >
+        새 일정 추가 (검증 필요)
+      </button>
+    )}
+  </div>
+);
+
 export default Page;
+
+// For handleEditSubmit in appwriteHandlers.js
+export const handleEditSubmit = async (
+  e,
+  editTask,
+  setEvents,
+  events,
+  setShowEditModal,
+  setSelectedEvent,
+  setNotification, // Add this parameter
+  setError // Add this parameter
+) => {
+  // Your existing code...
+};
+
+// For handleDeleteEvent in appwriteHandlers.js
+export const handleDeleteEvent = async (
+  eventId,
+  setEvents,
+  events,
+  setNotification, // Add this parameter
+  setError // Add this parameter
+) => {
+  // Your existing code...
+};

@@ -26,43 +26,53 @@ export const fetchEvents = async (
   setLoading,
   setEvents,
   setError,
-  targetMonth = null
+  targetMonth = null,
+  classId = null
 ) => {
   try {
     setLoading(true);
-
+    
     // Calculate date range (current month +/- 1 month)
     const now = targetMonth ? new Date(targetMonth) : new Date();
-
+    
     // First day of previous month
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-
+    
     // Last day of next month
     const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-
+    
     // Format dates for querying
-    const startDate = prevMonth.toISOString().split("T")[0];
-    const endDate = nextMonthEnd.toISOString().split("T")[0];
-
-    // Query with date filters
+    const startDate = prevMonth.toISOString().split('T')[0];
+    const endDate = nextMonthEnd.toISOString().split('T')[0];
+    
+    // Build query filters
+    let queries = [
+      Query.greaterThanEqual("date", startDate),
+      Query.lessThanEqual("date", endDate),
+      Query.limit(500) // Reasonable limit for 3 months
+    ];
+    
+    // Add class filter if provided - use search for array fields
+    if (classId) {
+      queries.push(Query.search("class", classId));
+    }
+    
+    // Query with filters
     const response = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
       process.env.NEXT_PUBLIC_APPWRITE_EVENTS_COLLECTION_ID,
-      [
-        Query.greaterThanEqual("date", startDate),
-        Query.lessThanEqual("date", endDate),
-        Query.limit(500), // Reasonable limit for 3 months
-      ]
+      queries
     );
-
+    
     const formattedEvents = response.documents.map((doc) => ({
       id: doc.$id,
       title: doc.title,
       start: doc.date,
       subject: doc.subject || "",
       description: doc.description || "",
+      class: Array.isArray(doc.class) ? doc.class : [doc.class || "느헤미아"], // Handle both array and string formats
     }));
-
+    
     setEvents(formattedEvents);
   } catch (error) {
     console.error("Error fetching events:", error);
@@ -226,12 +236,17 @@ export const handleAddTask = async (
   events,
   setNewTask,
   setShowModal,
-  setNotification,
+  setNotification, // Add this parameter
   setError
 ) => {
   e.preventDefault();
 
   try {
+    // Ensure class is an array
+    const taskClass = Array.isArray(newTask.class) ? 
+                      newTask.class : 
+                      (newTask.class ? [newTask.class] : ["느헤미아"]);
+
     // Use Appwrite SDK directly
     const result = await databases.createDocument(
       AppwriteConfig.databaseId,
@@ -242,6 +257,7 @@ export const handleAddTask = async (
         date: newTask.date,
         description: newTask.description,
         subject: newTask.subject || "",
+        class: taskClass
       }
     );
 
@@ -256,6 +272,7 @@ export const handleAddTask = async (
         start: result.date,
         description: result.description,
         subject: result.subject,
+        class: taskClass
       },
     ]);
 
@@ -265,6 +282,7 @@ export const handleAddTask = async (
       date: new Date().toISOString().split("T")[0],
       description: "",
       subject: "",
+      class: Array.isArray(newTask.class) ? newTask.class : [newTask.class || "느헤미아"]
     });
     setShowModal(false);
 
@@ -278,25 +296,21 @@ export const handleAddTask = async (
     return true;
   } catch (error) {
     console.error("Error adding task:", error);
-    setError("일정 추가에 실패했습니다.");
-    return false;
+    // Update this to use setError if available
+    if (setError) {
+      setError(`일정을 추가하는데 오류가 발생했습니다: ${error.message}`);
+    }
   }
 };
 
 // Delete an event
 export const handleDeleteEvent = async (
-  eventId,
-  setEvents,
+  eventId, 
+  onSuccess, // Use a callback instead of direct state setters
   events,
-  setShowViewModal,
-  setShowDateModal,
-  setNotification,
+  setNotification, 
   setError
 ) => {
-  if (!confirm("이 일정을 삭제하시겠습니까?")) {
-    return false;
-  }
-
   try {
     // Use Appwrite SDK directly
     await databases.deleteDocument(
@@ -305,25 +319,27 @@ export const handleDeleteEvent = async (
       eventId
     );
 
-    // Update local state
-    setEvents(events.filter((event) => event.id !== eventId));
-
-    // Close any open modals
-    setShowViewModal(false);
-    setShowDateModal(false);
-
+    // Filter out the deleted event
+    const updatedEvents = events.filter((event) => event.id !== eventId);
+    
+    // Use the callback for success
+    if (onSuccess) {
+      onSuccess(updatedEvents);
+    }
+    
     // Show success notification
-    setNotification({
-      show: true,
-      message: "일정이 삭제되었습니다.",
-      type: "success",
-    });
-
-    return true;
+    if (setNotification) {
+      setNotification({
+        show: true,
+        message: "일정이 삭제되었습니다.",
+        type: "success",
+      });
+    }
   } catch (error) {
     console.error("Error deleting event:", error);
-    setError("일정 삭제에 실패했습니다.");
-    return false;
+    if (setError) {
+      setError(`일정을 삭제하는데 오류가 발생했습니다: ${error.message}`);
+    }
   }
 };
 
@@ -341,6 +357,11 @@ export const handleEditSubmit = async (
   e.preventDefault();
 
   try {
+    // Ensure class is an array
+    const taskClass = Array.isArray(editTask.class) ? 
+                      editTask.class : 
+                      (editTask.class ? [editTask.class] : ["느헤미아"]);
+                      
     // Use Appwrite SDK directly
     const result = await databases.updateDocument(
       AppwriteConfig.databaseId,
@@ -351,6 +372,7 @@ export const handleEditSubmit = async (
         date: editTask.date,
         description: editTask.description,
         subject: editTask.subject || "",
+        class: taskClass
       }
     );
 
@@ -366,6 +388,7 @@ export const handleEditSubmit = async (
               start: editTask.date,
               description: editTask.description,
               subject: editTask.subject,
+              class: taskClass
             }
           : event
       )
