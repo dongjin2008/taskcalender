@@ -31,50 +31,50 @@ export const fetchEvents = async (
 ) => {
   try {
     setLoading(true);
-    
+
     // Calculate date range (current month +/- 1 month)
     const now = targetMonth ? new Date(targetMonth) : new Date();
-    
+
     // First day of previous month
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    
+
     // Last day of next month
     const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-    
+
     // Format dates for querying
-    const startDate = prevMonth.toISOString().split('T')[0];
-    const endDate = nextMonthEnd.toISOString().split('T')[0];
-    
+    const startDate = prevMonth.toISOString().split("T")[0];
+    const endDate = nextMonthEnd.toISOString().split("T")[0];
+
     // Build query filters
     let queries = [
       Query.greaterThanEqual("date", startDate),
       Query.lessThanEqual("date", endDate),
-      Query.limit(500) // Reasonable limit for 3 months
+      Query.limit(500), // Reasonable limit for 3 months
     ];
-    
+
     // Add class filter if provided - use search for array fields
     if (classId) {
       queries.push(Query.search("class", classId));
     }
-    
+
     // Query with filters
     const response = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
       process.env.NEXT_PUBLIC_APPWRITE_EVENTS_COLLECTION_ID,
       queries
     );
-    
+
     const formattedEvents = response.documents.map((doc) => ({
       id: doc.$id,
       title: doc.title,
       start: doc.date,
       subject: doc.subject || "",
       description: doc.description || "",
-      class: Array.isArray(doc.class) ? doc.class : [doc.class || "느헤미아"], // Handle both array and string formats
+      class: Array.isArray(doc.class) ? doc.class : [doc.class || "느혜미아"], // Handle both array and string formats
       creatorName: doc.creatorName || "", // Ensure creatorName is included
       createdAt: doc.$createdAt,
     }));
-    
+
     setEvents(formattedEvents);
   } catch (error) {
     console.error("Error fetching events:", error);
@@ -234,88 +234,96 @@ export const handleLogout = async (setIsTeacherUser, setNotification) => {
 export const handleAddTask = async (
   e,
   newTask,
-  setEvents,
+  onSuccess,
   events,
-  setNewTask,
-  setShowModal,
-  setNotification, // Add this parameter
+  resetForm,
+  setNotification,
   setError
 ) => {
   e.preventDefault();
 
   try {
-    // Ensure class is an array
-    const taskClass = Array.isArray(newTask.class) ? 
-                      newTask.class : 
-                      (newTask.class ? [newTask.class] : ["느헤미아"]);
-    const currentUser = await account.get();
-    const creatorName = currentUser.name || ""; // Get creator's name
+    // Get current user information
+    let creatorName = "Unknown";
 
-    // Use Appwrite SDK directly
-    const result = await databases.createDocument(
+    try {
+      const currentUser = await account.get();
+      creatorName = currentUser.name || "Unknown";
+    } catch (userError) {
+      console.log("Couldn't get user info:", userError);
+      // Continue with "Unknown" as creator name
+    }
+
+    // Add creatorName to the task
+    const taskWithCreator = {
+      ...newTask,
+      creatorName,
+    };
+
+    // Create document in Appwrite
+    const response = await databases.createDocument(
       AppwriteConfig.databaseId,
       AppwriteConfig.calendarEventsCollectionId,
       ID.unique(),
-      {
-        title: newTask.title,
-        date: newTask.date,
-        description: newTask.description,
-        subject: newTask.subject || "",
-        class: taskClass,
-        creatorName: creatorName || "" // Ensure creatorName is included
-      }
+      taskWithCreator
     );
 
-    console.log("Task added:", result);
+    // Create event object for UI
+    const createdEvent = {
+      id: response.$id,
+      title: response.title,
+      start: response.date,
+      description: response.description,
+      subject: response.subject,
+      class: response.class,
+      creatorName: response.creatorName,
+      createdAt: response.$createdAt,
+    };
 
-    // Update local state
-    setEvents([
-      ...events,
-      {
-        id: result.$id,
-        title: result.title,
-        start: result.date,
-        description: result.description,
-        subject: result.subject,
-        class: taskClass,
-        creatorName: result.creatorName, // Ensure creatorName is included
-      },
-    ]);
+    // Update events array
+    const updatedEvents = [...events, createdEvent];
 
-    // Reset form and close modal
-    setNewTask({
-      title: "",
-      date: new Date().toISOString().split("T")[0],
-      description: "",
-      subject: "",
-      class: Array.isArray(newTask.class) ? newTask.class : [newTask.class || "느헤미아"],
-      creatorName: ""
-    });
-    setShowModal(false);
+    // Call the success callback with updated events
+    if (onSuccess) {
+      onSuccess(updatedEvents);
+    }
+
+    // Reset the form
+    if (resetForm) {
+      resetForm();
+    }
 
     // Show success notification
-    setNotification({
-      show: true,
-      message: "일정이 추가되었습니다.",
-      type: "success",
-    });
+    if (setNotification) {
+      setNotification({
+        show: true,
+        message: "일정이 추가되었습니다.",
+        type: "success",
+      });
+    }
 
-    return true;
+    // IMPORTANT: Don't return the notification object!
+    // Just return void or return the events if needed
+    return;
   } catch (error) {
     console.error("Error adding task:", error);
-    // Update this to use setError if available
+
+    // Show error notification
     if (setError) {
       setError(`일정을 추가하는데 오류가 발생했습니다: ${error.message}`);
     }
+
+    // IMPORTANT: Don't return anything here either
+    return;
   }
 };
 
 // Delete an event
 export const handleDeleteEvent = async (
-  eventId, 
+  eventId,
   onSuccess, // Use a callback instead of direct state setters
   events,
-  setNotification, 
+  setNotification,
   setError
 ) => {
   try {
@@ -328,12 +336,12 @@ export const handleDeleteEvent = async (
 
     // Filter out the deleted event
     const updatedEvents = events.filter((event) => event.id !== eventId);
-    
+
     // Use the callback for success
     if (onSuccess) {
       onSuccess(updatedEvents);
     }
-    
+
     // Show success notification
     if (setNotification) {
       setNotification({
@@ -365,10 +373,12 @@ export const handleEditSubmit = async (
 
   try {
     // Ensure class is an array
-    const taskClass = Array.isArray(editTask.class) ? 
-                      editTask.class : 
-                      (editTask.class ? [editTask.class] : ["느헤미아"]);
-                      
+    const taskClass = Array.isArray(editTask.class)
+      ? editTask.class
+      : editTask.class
+      ? [editTask.class]
+      : ["느혜미아"];
+
     // Use Appwrite SDK directly
     const result = await databases.updateDocument(
       AppwriteConfig.databaseId,
@@ -379,7 +389,7 @@ export const handleEditSubmit = async (
         date: editTask.date,
         description: editTask.description,
         subject: editTask.subject || "",
-        class: taskClass
+        class: taskClass,
       }
     );
 
@@ -395,7 +405,7 @@ export const handleEditSubmit = async (
               start: editTask.date,
               description: editTask.description,
               subject: editTask.subject,
-              class: taskClass
+              class: taskClass,
             }
           : event
       )

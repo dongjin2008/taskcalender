@@ -1,16 +1,11 @@
-export function Notifications({ 
-  error, 
-  notification, 
-  setError, 
-  setNotification 
-}) {
+import React from "react";
+
+export function Notifications({ error, notification, setError, setNotification }) {
   return (
     <>
+      {/* Error alert */}
       {error && (
-        <div
-          className="alert alert-danger alert-dismissible fade show"
-          role="alert"
-        >
+        <div className="alert alert-danger alert-dismissible fade show" role="alert">
           {error}
           <button
             type="button"
@@ -20,19 +15,18 @@ export function Notifications({
           ></button>
         </div>
       )}
-
-      {notification.show && (
-        <div
-          className={`alert alert-${notification.type} alert-dismissible fade show`}
+      
+      {/* Notification alert */}
+      {notification?.show && ( // Make sure to check notification.show
+        <div 
+          className={`alert alert-${notification.type || 'info'} alert-dismissible fade show`} 
           role="alert"
         >
-          {notification.message}
+          {notification.message} {/* Access the message property */}
           <button
             type="button"
             className="btn-close"
-            onClick={() =>
-              setNotification({ show: false, message: "", type: "info" })
-            }
+            onClick={() => setNotification({...notification, show: false})}
             aria-label="Close"
           ></button>
         </div>

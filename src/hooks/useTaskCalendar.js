@@ -14,7 +14,7 @@ export function useTaskCalendar() {
   const classOptions = [
     { id: "에스라", name: "에스라반", grade: "10" },
     { id: "에스겔", name: "에스겔반", grade: "10" },
-    { id: "느헤미아", name: "느헤미아반", grade: "11" },
+    { id: "느혜미아", name: "느혜미아반", grade: "11" },
     { id: "아모스", name: "아모스반", grade: "11" },
     { id: "이사야", name: "이사야반", grade: "12" },
   ];
