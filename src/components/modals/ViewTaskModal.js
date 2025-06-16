@@ -8,10 +8,10 @@ const ViewTaskModal = ({
   onBackdropClick,
   onClose,
   onEdit,
-  onDelete
+  onDelete,
 }) => {
   const formattedCreatedAt = formatTimestamp(event.createdAt);
-  console.log(event)
+  console.log(event);
   return (
     <div className="modal-overlay" onClick={onBackdropClick}>
       <div
@@ -72,13 +72,11 @@ const ViewTaskModal = ({
             <div className="modal-footer">
               {isTeacherUser && isVerified && (
                 <>
-                  <button
-                    className="btn btn-danger me-auto"
-                    onClick={onDelete}
-                  >
+                  <button className="btn btn-danger me-auto" onClick={onDelete}>
                     삭제
                   </button>
                   <button
+                    type="button"
                     className="btn btn-primary"
                     onClick={onEdit}
                   >

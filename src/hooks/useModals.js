@@ -59,16 +59,56 @@ export function useModals(
 
   // Handler for clicking "Edit" on a task
   const handleEditClick = () => {
-    setEditTask({
-      id: selectedEvent.id,
-      title: selectedEvent.title,
-      date: selectedEvent.start.split("T")[0],
-      description: selectedEvent.description || "",
-      subject: selectedEvent.subject || "",
-      class: selectedEvent.class || [viewedClass],
-    });
-    setShowViewModal(false);
-    setShowEditModal(true);
+    if (selectedEvent) {
+      // Get the date as displayed in the UI (which is what users expect)
+      let dateStr = "";
+
+      try {
+        if (selectedEvent.start) {
+          if (typeof selectedEvent.start === "string") {
+            // Use the date part only, ignoring time
+            dateStr = selectedEvent.start.split("T")[0];
+
+            // Add one day to compensate for timezone offset if needed
+            // Only do this if you consistently see dates off by one day
+            const date = new Date(dateStr);
+            date.setDate(date.getDate() + 1);
+            dateStr = date.toISOString().split("T")[0];
+          } else if (selectedEvent.start instanceof Date) {
+            const year = selectedEvent.start.getFullYear();
+            const month = String(selectedEvent.start.getMonth() + 1).padStart(
+              2,
+              "0"
+            );
+            const day = String(selectedEvent.start.getDate()).padStart(2, "0");
+            dateStr = `${year}-${month}-${day}`;
+          } else {
+            dateStr = new Date().toISOString().split("T")[0];
+          }
+        } else {
+          dateStr = new Date().toISOString().split("T")[0];
+        }
+      } catch (error) {
+        console.error("Error processing date:", error);
+        dateStr = new Date().toISOString().split("T")[0];
+      }
+
+      // Set the edit task with the correct date
+      setEditTask({
+        id: selectedEvent.id,
+        title: selectedEvent.title || "",
+        date: dateStr,
+        description: selectedEvent.description || "",
+        subject: selectedEvent.subject || "",
+        class: Array.isArray(selectedEvent.class)
+          ? selectedEvent.class
+          : [viewedClass],
+        creatorName: selectedEvent.creatorName,
+      });
+
+      setShowViewModal(false);
+      setShowEditModal(true);
+    }
   };
 
   // Handler for date clicks on calendar
@@ -92,7 +132,8 @@ export function useModals(
     if (!isVerified) {
       setNotification({
         show: true,
-        message: "계정이 아직 승인되지 않았습니다. 관리자가 승인할 때까지 일정을 추가할 수 없습니다.",
+        message:
+          "계정이 아직 승인되지 않았습니다. 관리자가 승인할 때까지 일정을 추가할 수 없습니다.",
         type: "warning",
       });
       return;
@@ -120,7 +161,7 @@ export function useModals(
           description: "",
           subject: "",
           class: [viewedClass],
-          creatorName: ""
+          creatorName: "",
         }),
       setNotification,
       setError
@@ -129,33 +170,36 @@ export function useModals(
 
   // Handler for editing a task (wrapped)
   const handleEditSubmit = (e) => {
+    e.preventDefault();
+
     if (!isVerified) {
       setNotification({
         show: true,
-        message: "계정이 아직 검증되지 않았습니다. 관리자가 검증할 때까지 일정을 수정할 수 없습니다.",
+        message: "계정이 아직 검증되지 않았습니다.",
         type: "warning",
       });
       return;
     }
 
-    // Make sure class is always an array
-    const taskWithClass = {
-      ...editTask,
-      class: Array.isArray(editTask.class) ? editTask.class : [viewedClass],
-    };
-
     editSubmit(
       e,
-      taskWithClass,
+      editTask,
       (updatedEvents) => {
+        // This callback will be used to update events
         setEvents(updatedEvents);
         setShowEditModal(false);
-        setSelectedEvent(null);
       },
       events,
       setNotification,
       setError
-    );
+    ).catch((error) => {
+      console.error("Error in handleEditSubmit:", error);
+      setNotification({
+        show: true,
+        message: `일정을 수정하는데 오류가 발생했습니다: ${error.message}`,
+        type: "error",
+      });
+    });
   };
 
   // Handler for deleting an event (wrapped)

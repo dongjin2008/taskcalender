@@ -362,70 +362,75 @@ export const handleDeleteEvent = async (
 export const handleEditSubmit = async (
   e,
   editTask,
-  setEvents,
+  onSuccess, // This callback should be used to update events
   events,
-  setShowEditModal,
-  setSelectedEvent,
   setNotification,
   setError
 ) => {
   e.preventDefault();
 
   try {
-    // Ensure class is an array
-    const taskClass = Array.isArray(editTask.class)
-      ? editTask.class
-      : editTask.class
-      ? [editTask.class]
-      : ["느혜미아"];
+    // Get current user for "last edited by" info if needed
+    const updatePayload = {
+      title: editTask.title,
+      date: editTask.date,
+      description: editTask.description || "",
+      subject: editTask.subject || "",
+      class: Array.isArray(editTask.class) ? editTask.class : [],
+    };
 
-    // Use Appwrite SDK directly
-    const result = await databases.updateDocument(
+    // Update the document in Appwrite
+    const response = await databases.updateDocument(
       AppwriteConfig.databaseId,
       AppwriteConfig.calendarEventsCollectionId,
       editTask.id,
-      {
-        title: editTask.title,
-        date: editTask.date,
-        description: editTask.description,
-        subject: editTask.subject || "",
-        class: taskClass,
-      }
+      updatePayload
     );
 
-    console.log("Task updated:", result);
+    // Create updated event object
+    const updatedEvent = {
+      id: response.$id,
+      title: response.title,
+      start: response.date,
+      description: response.description || "",
+      subject: response.subject || "",
+      class: response.class || [],
+      creatorName: response.creatorName || editorName,
+      createdAt: response.$createdAt,
+      updatedAt: response.$updatedAt,
+    };
 
-    // Update local state
-    setEvents(
-      events.map((event) =>
-        event.id === editTask.id
-          ? {
-              ...event,
-              title: editTask.title,
-              start: editTask.date,
-              description: editTask.description,
-              subject: editTask.subject,
-              class: taskClass,
-            }
-          : event
-      )
+    // Update events array
+    const updatedEvents = events.map((event) =>
+      event.id === updatedEvent.id ? updatedEvent : event
     );
 
-    // Close modal and reset
-    setShowEditModal(false);
-    setSelectedEvent(null);
+    // Use the onSuccess callback instead of directly calling setEvents
+    if (typeof onSuccess === "function") {
+      onSuccess(updatedEvents);
+    }
 
     // Show success notification
-    setNotification({
-      show: true,
-      message: "일정이 업데이트되었습니다.",
-      type: "success",
-    });
-
-    return true;
+    if (typeof setNotification === "function") {
+      setNotification({
+        show: true,
+        message: "일정이 수정되었습니다.",
+        type: "success",
+      });
+    }
   } catch (error) {
     console.error("Error updating task:", error);
-    setError("일정 수정에 실패했습니다.");
-    return false;
+    if (typeof setError === "function") {
+      setError(`일정을 수정하는데 오류가 발생했습니다: ${error.message}`);
+    }
+
+    // Also show notification since the error might not be displayed
+    if (typeof setNotification === "function") {
+      setNotification({
+        show: true,
+        message: `일정을 수정하는데 오류가 발생했습니다: ${error.message}`,
+        type: "error",
+      });
+    }
   }
 };

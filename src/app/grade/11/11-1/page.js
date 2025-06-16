@@ -31,6 +31,7 @@ const Page = () => {
     message: "",
     type: "info",
   });
+  // Define error state
   const [error, setError] = useState(null);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -84,8 +85,8 @@ const Page = () => {
     setEvents,
     viewedClass,
     isVerified,
-    setNotification,
-    setError
+    setNotification, // Make sure this is a function
+    setError // Make sure this is a function
   );
 
   // Set isMounted after component mounts
