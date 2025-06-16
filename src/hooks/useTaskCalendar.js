@@ -43,6 +43,8 @@ export function useTaskCalendar() {
       description: info.event.extendedProps.description || "",
       subject: info.event.extendedProps.subject || "",
       class: info.event.extendedProps.class || viewedClass,
+      createdAt: info.event.extendedProps.createdAt || "",
+      creatorName: info.event.extendedProps.creatorName || "",
     };
   };
 

@@ -1,4 +1,5 @@
 import React from "react";
+import { formatTimestamp } from "@/utils/dateUtils";
 
 const ViewTaskModal = ({
   event,
@@ -9,6 +10,8 @@ const ViewTaskModal = ({
   onEdit,
   onDelete
 }) => {
+  const formattedCreatedAt = formatTimestamp(event.createdAt);
+  console.log(event)
   return (
     <div className="modal-overlay" onClick={onBackdropClick}>
       <div
@@ -54,6 +57,17 @@ const ViewTaskModal = ({
                   <p>{event.description}</p>
                 </div>
               )}
+            </div>
+            <hr className="my-3" />
+            <div className="d-flex justify-content-between px-2 pb-3 align-items-center text-muted small">
+              <div>
+                <i className="bi me-1"></i>
+                <strong>작성자:</strong> {event.creatorName || "Unknown"}
+              </div>
+              <div>
+                <i className="bi me-1"></i>
+                <strong>생성일:</strong> {formattedCreatedAt}
+              </div>
             </div>
             <div className="modal-footer">
               {isTeacherUser && isVerified && (

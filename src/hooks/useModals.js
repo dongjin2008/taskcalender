@@ -120,6 +120,7 @@ export function useModals(
           description: "",
           subject: "",
           class: [viewedClass],
+          creatorName: ""
         }),
       setNotification,
       setError

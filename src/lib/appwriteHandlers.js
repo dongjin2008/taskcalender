@@ -71,6 +71,8 @@ export const fetchEvents = async (
       subject: doc.subject || "",
       description: doc.description || "",
       class: Array.isArray(doc.class) ? doc.class : [doc.class || "느헤미아"], // Handle both array and string formats
+      creatorName: doc.creatorName || "", // Ensure creatorName is included
+      createdAt: doc.$createdAt,
     }));
     
     setEvents(formattedEvents);
@@ -246,6 +248,8 @@ export const handleAddTask = async (
     const taskClass = Array.isArray(newTask.class) ? 
                       newTask.class : 
                       (newTask.class ? [newTask.class] : ["느헤미아"]);
+    const currentUser = await account.get();
+    const creatorName = currentUser.name || ""; // Get creator's name
 
     // Use Appwrite SDK directly
     const result = await databases.createDocument(
@@ -257,7 +261,8 @@ export const handleAddTask = async (
         date: newTask.date,
         description: newTask.description,
         subject: newTask.subject || "",
-        class: taskClass
+        class: taskClass,
+        creatorName: creatorName || "" // Ensure creatorName is included
       }
     );
 
@@ -272,7 +277,8 @@ export const handleAddTask = async (
         start: result.date,
         description: result.description,
         subject: result.subject,
-        class: taskClass
+        class: taskClass,
+        creatorName: result.creatorName, // Ensure creatorName is included
       },
     ]);
 
@@ -282,7 +288,8 @@ export const handleAddTask = async (
       date: new Date().toISOString().split("T")[0],
       description: "",
       subject: "",
-      class: Array.isArray(newTask.class) ? newTask.class : [newTask.class || "느헤미아"]
+      class: Array.isArray(newTask.class) ? newTask.class : [newTask.class || "느헤미아"],
+      creatorName: ""
     });
     setShowModal(false);
 
