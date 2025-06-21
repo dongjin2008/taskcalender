@@ -9,6 +9,7 @@ const GoogleCalendarClassSelector = ({ classOptions }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResults, setSyncResults] = useState(null);
   const [showSyncResults, setShowSyncResults] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true); // Add state for collapsible functionality
 
   // Initialize state from local storage
   useEffect(() => {
@@ -226,127 +227,143 @@ const GoogleCalendarClassSelector = ({ classOptions }) => {
   return (
     <div className="google-calendar-sync-selector mt-3">
       <div className="card">
-        <div className="card-header d-flex align-items-center">
-          <i className="bi bi-calendar-check text-success me-2"></i>
-          <span>구글 캘린더 동기화 설정</span>
-        </div>
-        <div className="card-body">
-          <p className="card-text">구글 캘린더에 동기화할 반을 선택하세요:</p>
-          <div className="d-flex flex-wrap gap-2">
-            {classOptions.map((classOption) => (
-              <div key={classOption.id} className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id={`sync-class-${classOption.id}`}
-                  checked={syncClasses.includes(classOption.id)}
-                  onChange={() => handleToggleClass(classOption.id)}
-                  disabled={isSyncing}
-                />
-                <label
-                  className="form-check-label"
-                  htmlFor={`sync-class-${classOption.id}`}
-                >
-                  {classOption.name}
-                </label>
-              </div>
-            ))}
+        <div
+          className="card-header d-flex justify-content-between align-items-center"
+          role="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          style={{ cursor: "pointer" }}
+        >
+          <div className="d-flex align-items-center">
+            <i className="bi bi-calendar-check text-success me-2"></i>
+            <span>구글 캘린더 동기화 설정</span>
           </div>
-
-          {isSyncing && (
-            <div className="alert alert-warning mt-3">
-              <div className="d-flex align-items-center">
-                <div
-                  className="spinner-border spinner-border-sm me-2"
-                  role="status"
-                >
-                  <span className="visually-hidden">Loading...</span>
+          <div>
+            <i
+              className={`bi ${
+                isExpanded ? "bi-chevron-up" : "bi-chevron-down"
+              }`}
+            ></i>
+          </div>
+        </div>
+        {isExpanded && (
+          <div className="card-body">
+            <p className="card-text">구글 캘린더에 동기화할 반을 선택하세요:</p>
+            <div className="d-flex flex-wrap gap-2">
+              {classOptions.map((classOption) => (
+                <div key={classOption.id} className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id={`sync-class-${classOption.id}`}
+                    checked={syncClasses.includes(classOption.id)}
+                    onChange={() => handleToggleClass(classOption.id)}
+                    disabled={isSyncing}
+                  />
+                  <label
+                    className="form-check-label"
+                    htmlFor={`sync-class-${classOption.id}`}
+                  >
+                    {classOption.name}
+                  </label>
                 </div>
-                <span>기존 일정 동기화 중...</span>
+              ))}
+            </div>
+
+            {isSyncing && (
+              <div className="alert alert-warning mt-3">
+                <div className="d-flex align-items-center">
+                  <div
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                  >
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                  <span>기존 일정 동기화 중...</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {showSyncResults && syncResults && (
-            <div className="alert alert-success mt-3">
-              <h6>동기화 결과:</h6>
-              <ul className="mb-0">
-                <li>총 일정: {syncResults.total}개</li>
-                <li>동기화됨: {syncResults.synced}개</li>
-                <li>건너뜀: {syncResults.skipped}개</li>
-                <li>실패: {syncResults.failed}개</li>
-              </ul>
-              <p className="mt-2 mb-0">
-                <small className="text-muted">
-                  {formattedToday} 이후의 일정만 동기화되었습니다.
+            {showSyncResults && syncResults && (
+              <div className="alert alert-success mt-3">
+                <h6>동기화 결과:</h6>
+                <ul className="mb-0">
+                  <li>총 일정: {syncResults.total}개</li>
+                  <li>동기화됨: {syncResults.synced}개</li>
+                  <li>건너뜀: {syncResults.skipped}개</li>
+                  <li>실패: {syncResults.failed}개</li>
+                </ul>
+                <p className="mt-2 mb-0">
+                  <small className="text-muted">
+                    {formattedToday} 이후의 일정만 동기화되었습니다.
+                  </small>
+                </p>
+              </div>
+            )}
+
+            {syncClasses.length === 0 && (
+              <div className="alert alert-warning mt-3 mb-0">
+                <small>
+                  <i className="bi bi-info-circle me-1"></i>
+                  반을 선택하지 않으면 새로운 일정이 구글 캘린더에 동기화되지
+                  않습니다.
                 </small>
-              </p>
-            </div>
-          )}
+              </div>
+            )}
 
-          {syncClasses.length === 0 && (
-            <div className="alert alert-warning mt-3 mb-0">
+            <div className="alert alert-secondary mt-3 mb-0">
               <small>
                 <i className="bi bi-info-circle me-1"></i>
-                반을 선택하지 않으면 새로운 일정이 구글 캘린더에 동기화되지
-                않습니다.
+                반을 선택하면 <strong>{formattedToday} 이후</strong>의 기존
+                일정도 자동으로 동기화됩니다.
               </small>
             </div>
-          )}
 
-          <div className="alert alert-secondary mt-3 mb-0">
-            <small>
-              <i className="bi bi-info-circle me-1"></i>
-              반을 선택하면 <strong>{formattedToday} 이후</strong>의 기존 일정도
-              자동으로 동기화됩니다.
-            </small>
-          </div>
+            <div className="d-flex justify-content-end mt-3">
+              <button
+                className="btn btn-sm btn-outline-primary"
+                onClick={async () => {
+                  try {
+                    setIsSyncing(true);
+                    const accessToken = googleCalendarService.getAccessToken();
+                    if (accessToken) {
+                      const results =
+                        await taskSyncHelper.syncExistingTasksForSelectedClasses(
+                          accessToken
+                        );
+                      setSyncResults(results.summary);
+                      setShowSyncResults(true);
 
-          <div className="d-flex justify-content-end mt-3">
-            <button
-              className="btn btn-sm btn-outline-primary"
-              onClick={async () => {
-                try {
-                  setIsSyncing(true);
-                  const accessToken = googleCalendarService.getAccessToken();
-                  if (accessToken) {
-                    const results =
-                      await taskSyncHelper.syncExistingTasksForSelectedClasses(
-                        accessToken
-                      );
-                    setSyncResults(results.summary);
-                    setShowSyncResults(true);
-
-                    setTimeout(() => {
-                      setShowSyncResults(false);
-                    }, 10000);
+                      setTimeout(() => {
+                        setShowSyncResults(false);
+                      }, 10000);
+                    }
+                  } catch (error) {
+                    console.error("Error during manual sync:", error);
+                  } finally {
+                    setIsSyncing(false);
                   }
-                } catch (error) {
-                  console.error("Error during manual sync:", error);
-                } finally {
-                  setIsSyncing(false);
-                }
-              }}
-              disabled={isSyncing}
-            >
-              {isSyncing ? (
-                <>
-                  <span
-                    className="spinner-border spinner-border-sm me-1"
-                    role="status"
-                    aria-hidden="true"
-                  ></span>
-                  동기화 중...
-                </>
-              ) : (
-                <>
-                  <i className="bi bi-arrow-repeat me-1"></i>
-                  모든 일정 다시 동기화
-                </>
-              )}
-            </button>
+                }}
+                disabled={isSyncing}
+              >
+                {isSyncing ? (
+                  <>
+                    <span
+                      className="spinner-border spinner-border-sm me-1"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                    동기화 중...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-arrow-repeat me-1"></i>
+                    모든 일정 다시 동기화
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
