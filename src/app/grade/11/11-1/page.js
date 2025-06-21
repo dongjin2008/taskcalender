@@ -11,6 +11,7 @@ import { useTaskCalendar } from "@/hooks/useTaskCalendar";
 import { useAuth } from "@/hooks/useAuth";
 import { useModals } from "@/hooks/useModals";
 import { calendarStyles } from "@/styles/calendarStyles";
+import GoogleCalendarClassSelector from "@/components/GoogleCalendarClassSelector";
 
 const Page = () => {
   const {
@@ -34,6 +35,11 @@ const Page = () => {
   // Define error state
   const [error, setError] = useState(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [googleCalendarToken, setGoogleCalendarToken] = useState(null);
+
+  const handleGoogleCalendarConnect = (token) => {
+    setGoogleCalendarToken(token);
+  };
 
   const {
     isTeacherUser,
@@ -86,12 +92,23 @@ const Page = () => {
     viewedClass,
     isVerified,
     setNotification, // Make sure this is a function
-    setError // Make sure this is a function
+    setError, // Make sure this is a function
+    googleCalendarToken
   );
 
   // Set isMounted after component mounts
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  // Load stored Google Calendar token on initial render
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedToken = localStorage.getItem("googleCalendarToken");
+      if (storedToken) {
+        setGoogleCalendarToken(storedToken);
+      }
+    }
   }, []);
 
   // If not mounted yet, render placeholder
@@ -121,6 +138,7 @@ const Page = () => {
         onLogin={() => setShowAuthModal(true)}
         onLogout={handleLogout}
         onClientLogout={handleClientSideLogout}
+        onGoogleCalendarConnect={handleGoogleCalendarConnect}
       >
         <ClassSelector
           viewedClass={viewedClass}
@@ -128,6 +146,12 @@ const Page = () => {
           onChange={handleClassChange}
         />
       </Header>
+
+      {googleCalendarToken && (
+        <div className="mb-4">
+          <GoogleCalendarClassSelector classOptions={classOptions} />
+        </div>
+      )}
 
       <Notifications
         error={error}
