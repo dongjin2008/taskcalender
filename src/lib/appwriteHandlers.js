@@ -1,5 +1,7 @@
 import { ID } from "appwrite";
 import { account, databases, AppwriteConfig, Query } from "./appwrite";
+import { googleCalendarService } from "./googleCalendarService";
+import { googleCalendarUtils } from "../utils/googleCalendarUtils";
 
 // Check authentication status
 export const checkAuthStatus = async (setIsTeacherUser, setIsVerified) => {
@@ -280,6 +282,94 @@ export const handleAddTask = async (
       createdAt: response.$createdAt,
     };
 
+    // Sync with Google Calendar if connected
+    let googleCalendarEventId = null;
+    try {
+      if (googleCalendarService.isConnected()) {
+        const accessToken = googleCalendarService.getAccessToken();
+        const googleEvent = await googleCalendarService.createCalendarEvent(
+          accessToken,
+          taskWithCreator
+        );
+
+        // Handle skipped sync based on class settings
+        if (googleEvent.skipped) {
+          console.log("Calendar sync skipped:", googleEvent.reason);
+
+          if (setNotification) {
+            setNotification({
+              show: true,
+              message:
+                "일정이 추가되었습니다 (선택된 반이 아니어서 구글 캘린더 동기화는 건너뛰었습니다).",
+              type: "success",
+            });
+          }
+        } else {
+          // Regular sync success
+          // Validate and get storage-safe version of the Google Calendar event ID
+          googleCalendarEventId = googleCalendarUtils.getSafeEventId(
+            googleEvent.id
+          );
+
+          try {
+            // Update Appwrite document with Google Calendar event ID for future reference
+            await databases.updateDocument(
+              AppwriteConfig.databaseId,
+              AppwriteConfig.calendarEventsCollectionId,
+              response.$id,
+              { googleCalendarEventId }
+            );
+
+            // Add Google Calendar ID to the event
+            createdEvent.googleCalendarEventId = googleCalendarEventId;
+
+            if (setNotification) {
+              setNotification({
+                show: true,
+                message:
+                  "일정이 추가되었으며 구글 캘린더에도 동기화되었습니다.",
+                type: "success",
+              });
+            }
+          } catch (schemaError) {
+            console.error("Schema update error:", schemaError);
+
+            // Still count it as success but with a warning
+            if (setNotification) {
+              setNotification({
+                show: true,
+                message:
+                  "일정이 추가되었으며 구글 캘린더에도 동기화되었습니다. (참고: 구글 이벤트 ID를 저장하는데 문제가 있었습니다)",
+                type: "warning",
+              });
+            }
+
+            // For developers only - log the error message
+            if (
+              schemaError.message &&
+              schemaError.message.includes(
+                'Unknown attribute: "googleCalendarEventId"'
+              )
+            ) {
+              console.error(
+                "Appwrite schema error: Missing googleCalendarEventId attribute in the collection. Please update your schema."
+              );
+            }
+          }
+        }
+      }
+    } catch (googleError) {
+      console.error("Google Calendar sync error:", googleError);
+      // Continue even if Google Calendar sync fails
+      if (setNotification) {
+        setNotification({
+          show: true,
+          message: "일정이 추가되었으나 구글 캘린더 동기화에 실패했습니다.",
+          type: "warning",
+        });
+      }
+    }
+
     // Update events array
     const updatedEvents = [...events, createdEvent];
 
@@ -293,8 +383,8 @@ export const handleAddTask = async (
       resetForm();
     }
 
-    // Show success notification
-    if (setNotification) {
+    // Show success notification if it wasn't already shown by the Google Calendar sync
+    if (setNotification && !googleCalendarEventId) {
       setNotification({
         show: true,
         message: "일정이 추가되었습니다.",

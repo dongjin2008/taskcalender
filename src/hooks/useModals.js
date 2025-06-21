@@ -13,7 +13,8 @@ export function useModals(
   viewedClass,
   isVerified,
   setNotification,
-  setError
+  setError,
+  googleCalendarToken
 ) {
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);

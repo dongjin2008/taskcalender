@@ -1,6 +1,8 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/next";
+import GoogleOAuthWrapper from "@/components/GoogleOAuthWrapper";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,12 +28,27 @@ export default function RootLayout({ children }) {
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
           rel="stylesheet"
         />
-        {/* Add Bootstrap JS via Next.js Script component */}
+        {/* Bootstrap Icons */}
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css"
+        />
+        {/* Google API Client Library */}
+        <Script
+          src="https://apis.google.com/js/api.js"
+          strategy="beforeInteractive"
+        />
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="beforeInteractive"
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <GoogleOAuthWrapper clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}>
+          {children}
+        </GoogleOAuthWrapper>
         <Analytics />
         {/* Add Bootstrap JS via Next.js Script component */}
         {typeof window !== "undefined" && (

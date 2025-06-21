@@ -1,3 +1,6 @@
+import GoogleCalendarConnect from "./GoogleCalendarConnect";
+import { useState } from "react";
+
 export function Header({
   viewedClass,
   isTeacherUser,
@@ -5,8 +8,37 @@ export function Header({
   onLogin,
   onLogout,
   onClientLogout,
+  onGoogleCalendarConnect,
   children,
 }) {
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+
+  const handleGoogleConnect = (token) => {
+    setIsGoogleConnected(true);
+    if (onGoogleCalendarConnect) {
+      onGoogleCalendarConnect(token);
+    }
+  };
+
+  const handleGoogleDisconnect = () => {
+    setIsGoogleConnected(false);
+    if (onGoogleCalendarConnect) {
+      onGoogleCalendarConnect(null);
+    }
+  };
+
+  // Helper function to render the Google Calendar connection UI
+  const renderGoogleCalendarConnect = () => (
+    <div className="me-3">
+      {" "}
+      <GoogleCalendarConnect
+        onConnect={handleGoogleConnect}
+        onDisconnect={handleGoogleDisconnect}
+        isConnected={isGoogleConnected}
+      />
+    </div>
+  );
+
   return (
     <div className="d-flex flex-column mb-4">
       <div className="d-flex justify-content-between align-items-center">
@@ -16,34 +48,40 @@ export function Header({
         </div>
         {isTeacherUser ? (
           <div className="d-flex align-items-center">
-            <span className="me-2">
-              교사 로그인됨{" "}
-              {!isVerified && (
-                <span className="badge bg-warning">관리자 승인 대기중</span>
-              )}
-            </span>
-            <button
-              className="btn btn-outline-secondary"
-              // Try the regular logout, but if it fails, use client logout
-              onClick={() => {
-                try {
-                  onLogout();
-                } catch (error) {
-                  console.error(
-                    "Regular logout failed, using client logout",
-                    error
-                  );
-                  onClientLogout();
-                }
-              }}
-            >
-              로그아웃
-            </button>
+            {renderGoogleCalendarConnect()}
+            <div>
+              <span className="me-2">
+                교사 로그인됨{" "}
+                {!isVerified && (
+                  <span className="badge bg-warning">관리자 승인 대기중</span>
+                )}
+              </span>
+              <button
+                className="btn btn-outline-secondary"
+                // Try the regular logout, but if it fails, use client logout
+                onClick={() => {
+                  try {
+                    onLogout();
+                  } catch (error) {
+                    console.error(
+                      "Regular logout failed, using client logout",
+                      error
+                    );
+                    onClientLogout();
+                  }
+                }}
+              >
+                로그아웃
+              </button>
+            </div>
           </div>
         ) : (
-          <button className="btn btn-primary" onClick={onLogin}>
-            교사 로그인
-          </button>
+          <div className="d-flex align-items-center">
+            {renderGoogleCalendarConnect()}
+            <button className="btn btn-primary" onClick={onLogin}>
+              교사 로그인
+            </button>
+          </div>
         )}
       </div>
 
