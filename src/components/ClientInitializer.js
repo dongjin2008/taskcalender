@@ -1,9 +1,37 @@
 "use client";
 
 import { useEffect } from "react";
-import { App } from "@capacitor/app";
-import { StatusBar } from "@capacitor/status-bar";
-import { SplashScreen } from "@capacitor/splash-screen";
+
+// Safe imports with fallbacks for Capacitor plugins
+let App;
+let StatusBar;
+let SplashScreen;
+
+// Check if we're in a browser environment and try to import Capacitor plugins
+if (typeof window !== "undefined") {
+  try {
+    // Dynamic imports to prevent build errors
+    import("@capacitor/app")
+      .then((module) => {
+        App = module.App;
+      })
+      .catch((e) => console.log("App plugin not available:", e));
+
+    import("@capacitor/status-bar")
+      .then((module) => {
+        StatusBar = module.StatusBar;
+      })
+      .catch((e) => console.log("StatusBar plugin not available:", e));
+
+    import("@capacitor/splash-screen")
+      .then((module) => {
+        SplashScreen = module.SplashScreen;
+      })
+      .catch((e) => console.log("SplashScreen plugin not available:", e));
+  } catch (error) {
+    console.log("Capacitor plugins could not be loaded:", error);
+  }
+}
 
 // Detect if we're running in Capacitor
 const isCapacitorApp = () => {
@@ -21,31 +49,38 @@ export default function ClientInitializer() {
         console.log("Running in Capacitor environment");
 
         try {
-          // Hide splash screen
-          await SplashScreen.hide();
+          // Hide splash screen if available
+          if (SplashScreen) {
+            await SplashScreen.hide();
+          }
 
-          // Set status bar style
-          await StatusBar.setStyle({ style: "dark" });
+          // Set status bar style if available
+          if (StatusBar) {
+            await StatusBar.setStyle({ style: "dark" });
+          }
 
-          // Handle back button
-          App.addListener("backButton", ({ canGoBack }) => {
-            if (!canGoBack) {
-              App.exitApp();
-            } else {
-              window.history.back();
-            }
-          });
+          // Handle back button if available
+          if (App) {
+            App.addListener("backButton", ({ canGoBack }) => {
+              if (!canGoBack) {
+                App.exitApp();
+              } else {
+                window.history.back();
+              }
+            });
+          }
         } catch (error) {
           console.error("Error initializing Capacitor:", error);
         }
       }
     };
 
-    initCapacitor();
+    // Initialize with a small delay to ensure plugins are loaded
+    setTimeout(initCapacitor, 100);
 
     // Clean up listeners
     return () => {
-      if (isCapacitorApp()) {
+      if (isCapacitorApp() && App) {
         App.removeAllListeners();
       }
     };
