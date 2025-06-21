@@ -14,7 +14,7 @@ export default function GoogleAuthDevHelp() {
         <p>
           <strong>오류 메시지를 보고 계신가요?</strong>
           <br />
-          "taskcalender has not completed the Google verification process..."
+          &quot;taskcalender has not completed the Google verification process...&quot;
         </p>
         <button
           className="btn btn-outline-dark"
@@ -43,13 +43,13 @@ export default function GoogleAuthDevHelp() {
               </li>
               <li className="list-group-item">프로젝트를 선택하세요.</li>
               <li className="list-group-item">
-                "테스트 사용자" 섹션을 찾아 "테스트 사용자 추가" 버튼을
+                &quot;테스트 사용자&quot; 섹션을 찾아 &quot;테스트 사용자 추가&quot; 버튼을
                 클릭하세요.
               </li>
               <li className="list-group-item">
                 현재 사용 중인 Google 계정 이메일을 입력하세요.
               </li>
-              <li className="list-group-item">"저장" 버튼을 클릭하세요.</li>
+              <li className="list-group-item">&quot;저장&quot; 버튼을 클릭하세요.</li>
               <li className="list-group-item">
                 변경사항이 적용되기까지 몇 분 정도 기다리세요.
               </li>
