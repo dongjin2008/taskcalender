@@ -1,6 +1,8 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/next";
+import Script from "next/script";
+import ClientInitializer from "@/components/ClientInitializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,26 +22,21 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <head>
-        {/* Add Bootstrap CSS - although you might already have this in globals.css */}
-        <link
-          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-          rel="stylesheet"
-        />
-        {/* Add Bootstrap JS via Next.js Script component */}
-      </head>
+      <head />
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/* Client component for initialization */}
+        <ClientInitializer />
+
         {children}
         <Analytics />
-        {/* Add Bootstrap JS via Next.js Script component */}
-        {typeof window !== "undefined" && (
-          <script
-            src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
-            async
-          />
-        )}
+
+        {/* Use Next.js Script component properly */}
+        <Script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   );

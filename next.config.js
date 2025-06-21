@@ -1,36 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "export",
   reactStrictMode: true,
-  experimental: {
-    appDir: true,
+  images: {
+    unoptimized: true,
   },
-  transpilePackages: [
-    "@fullcalendar/common",
-    "@fullcalendar/core",
-    "@fullcalendar/daygrid",
-    "@fullcalendar/interaction",
-    "@fullcalendar/react",
-    "@fullcalendar/timegrid",
-    "@fullcalendar/bootstrap5",
-  ],
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          {
-            key: "X-Frame-Options",
-            // We handle the frame-ancestors in middleware more specifically
-            value: "SAMEORIGIN",
-          },
-          {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
-          },
-        ],
-      },
-    ];
-  },
+  // This helps with routing in Capacitor
+  assetPrefix: "",
+  trailingSlash: true,
 };
 
 module.exports = nextConfig;

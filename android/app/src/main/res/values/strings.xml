@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">saerotask</string>
+    <string name="title_activity_main">saerotask</string>
+    <string name="package_name">com.saeronam.saerotask</string>
+    <string name="custom_url_scheme">com.saeronam.saerotask</string>
+</resources>
