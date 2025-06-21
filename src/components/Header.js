@@ -29,8 +29,10 @@ export function Header({
 
   // Helper function to render the Google Calendar connection UI
   const renderGoogleCalendarConnect = () => (
-    <div className="me-3">
-      {" "}
+    <div
+      className="mt-2 mt-md-0"
+      style={{ minWidth: isTeacherUser ? "auto" : "0" }}
+    >
       <GoogleCalendarConnect
         onConnect={handleGoogleConnect}
         onDisconnect={handleGoogleDisconnect}
@@ -41,23 +43,23 @@ export function Header({
 
   return (
     <div className="d-flex flex-column mb-4">
-      <div className="d-flex justify-content-between align-items-center">
-        <div className="d-flex align-items-center">
-          <h1 className="mb-0 me-3">{viewedClass}반 달력</h1>
+      <div className="d-flex flex-wrap align-items-center gap-2">
+        <div className="d-flex flex-wrap align-items-center me-auto">
+          <h1 className="mb-0 me-3 fs-4 fs-md-3">{viewedClass}반 달력</h1>
           {children}
         </div>
         {isTeacherUser ? (
-          <div className="d-flex align-items-center">
+          <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center">
             {renderGoogleCalendarConnect()}
-            <div>
-              <span className="me-2">
+            <div className="d-flex flex-wrap align-items-center mt-2 mt-md-0 ms-md-2">
+              <div className="me-2 text-nowrap">
                 교사 로그인됨{" "}
                 {!isVerified && (
                   <span className="badge bg-warning">관리자 승인 대기중</span>
                 )}
-              </span>
+              </div>
               <button
-                className="btn btn-outline-secondary"
+                className="btn btn-outline-secondary btn-sm mt-1 mt-md-0"
                 // Try the regular logout, but if it fails, use client logout
                 onClick={() => {
                   try {
@@ -76,9 +78,12 @@ export function Header({
             </div>
           </div>
         ) : (
-          <div className="d-flex align-items-center">
+          <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center ms-auto">
             {renderGoogleCalendarConnect()}
-            <button className="btn btn-primary" onClick={onLogin}>
+            <button
+              className="btn btn-primary ms-md-2 mt-2 mt-md-0"
+              onClick={onLogin}
+            >
               교사 로그인
             </button>
           </div>

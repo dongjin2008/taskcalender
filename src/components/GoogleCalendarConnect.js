@@ -159,28 +159,34 @@ const GoogleCalendarConnect = ({ onConnect, onDisconnect, isConnected }) => {
   };
 
   return (
-    <div className="google-calendar-connect mt-3 mb-3">
+    <div className="google-calendar-connect">
       {connectionStatus ? (
-        <div className="d-flex align-items-center">
-          <span className="me-2">
-            <i className="bi bi-calendar-check text-success"></i> 구글 캘린더
-            연결됨
+        <div className="d-flex flex-wrap align-items-center gap-2">
+          <div className="d-flex align-items-center flex-nowrap">
+            <i className="bi bi-calendar-check text-success me-1"></i>
+            <span className="text-nowrap">구글 캘린더 연결됨</span>
             {userEmail && (
-              <small className="text-muted ms-2">({userEmail})</small>
+              <small
+                className="text-muted ms-1 text-truncate"
+                style={{ maxWidth: "120px" }}
+                title={userEmail}
+              >
+                ({userEmail})
+              </small>
             )}
-          </span>
+          </div>
           {isSyncing && (
-            <span className="text-muted me-2">
+            <span className="text-muted d-flex align-items-center">
               <span
                 className="spinner-border spinner-border-sm me-1"
                 role="status"
                 aria-hidden="true"
               ></span>
-              기존 일정 동기화 중...
+              <span className="text-nowrap">동기화 중...</span>
             </span>
           )}
           <button
-            className="btn btn-sm btn-outline-danger"
+            className="btn btn-sm btn-outline-danger ms-auto"
             onClick={handleDisconnect}
             disabled={isSyncing}
           >
@@ -188,9 +194,12 @@ const GoogleCalendarConnect = ({ onConnect, onDisconnect, isConnected }) => {
           </button>
         </div>
       ) : (
-        <div>
-          <button className="btn btn-outline-primary" onClick={() => login()}>
-            <i className="bi bi-google me-2"></i> 구글 캘린더 연결하기
+        <div className="d-flex justify-content-end">
+          <button
+            className="btn btn-sm btn-outline-primary"
+            onClick={() => login()}
+          >
+            <i className="bi bi-google me-1"></i> 구글 캘린더 연결
           </button>
         </div>
       )}
