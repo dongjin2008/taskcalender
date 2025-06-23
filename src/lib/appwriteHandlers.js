@@ -72,7 +72,7 @@ export const fetchEvents = async (
       start: doc.date,
       subject: doc.subject || "",
       description: doc.description || "",
-      class: Array.isArray(doc.class) ? doc.class : [doc.class || "느혜미아"], // Handle both array and string formats
+      class: Array.isArray(doc.class) ? doc.class : [doc.class || "느헤미아"], // Handle both array and string formats
       creatorName: doc.creatorName || "", // Ensure creatorName is included
       createdAt: doc.$createdAt,
     }));
